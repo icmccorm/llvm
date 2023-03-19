@@ -1019,6 +1019,10 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
                                          GenericValue *Ptr, Type *Ty) {
   const unsigned StoreBytes = getDataLayout().getTypeStoreSize(Ty);
 
+  if(ExecutionEngine::MiriWriteHook != nullptr){
+    ExecutionEngine::MiriWriteHook(Ptr->ProvenanceVal);
+  }
+
   switch (Ty->getTypeID()) {
   default:
     dbgs() << "Cannot store value of type " << *Ty << "!\n";
@@ -1068,7 +1072,11 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
 void ExecutionEngine::LoadValueFromMemory(GenericValue &Result,
                                           GenericValue *Ptr,
                                           Type *Ty) {
+
   const unsigned LoadBytes = getDataLayout().getTypeStoreSize(Ty);
+  if(ExecutionEngine::MiriReadHook != nullptr){
+    ExecutionEngine::MiriReadHook (Ptr->ProvenanceVal);
+  }
 
   switch (Ty->getTypeID()) {
   case Type::IntegerTyID:

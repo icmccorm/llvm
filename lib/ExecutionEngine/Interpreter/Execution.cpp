@@ -893,7 +893,7 @@ void Interpreter::popStackAndReturnValueToCaller(Type *RetTy,
                                                  GenericValue Result) {
   // Pop the current stack frame.
   ECStack.pop_back();
-
+  
   if (ECStack.empty()) {  // Finished main.  Put result into exit code...
     if (RetTy && !RetTy->isVoidTy()) {          // Nonvoid return type?
       ExitValue = Result;   // Capture the exit value of the program
@@ -912,6 +912,9 @@ void Interpreter::popStackAndReturnValueToCaller(Type *RetTy,
         SwitchToNewBasicBlock (II->getNormalDest (), CallingSF);
       CallingSF.Caller = nullptr;             // We returned from the call...
     }
+  }
+  if(MiriReturnHook != nullptr){
+    MiriReturnHook()
   }
 }
 
@@ -2150,6 +2153,10 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
 
   // Handle varargs arguments...
   StackFrame.VarArgs.assign(ArgVals.begin()+i, ArgVals.end());
+
+  if(MiriCallHook != nullptr) {
+    MiriCallHook()
+  }
 }
 
 

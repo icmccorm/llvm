@@ -35,7 +35,7 @@ typedef generic_gep_type_iterator<User::const_op_iterator> gep_type_iterator;
 //
 class AllocaHolder {
   std::vector<void *> Allocations;
-
+  
 public:
   AllocaHolder() = default;
 

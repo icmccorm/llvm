@@ -18,7 +18,7 @@
 
 #ifndef LLVM_C_EXECUTIONENGINE_H
 #define LLVM_C_EXECUTIONENGINE_H
-
+#include "llvm-c/Miri.h"
 #include "llvm-c/ExternC.h"
 #include "llvm-c/Target.h"
 #include "llvm-c/TargetMachine.h"
@@ -153,6 +153,19 @@ uint64_t LLVMGetFunctionAddress(LLVMExecutionEngineRef EE, const char *Name);
 /// message is copied to OutStr and cleared in the ExecutionEngine instance.
 LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
                                       char **OutError);
+/*===-- Interoperation with Miri ------------------------------------------===*/
+
+void LLVMExecutionEngineSetMiriReadHook(LLVMExecutionEngineRef EE, 
+                                     MiriMemoryHook IncomingReadHook);
+                                     
+void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, 
+                                     MiriMemoryHook IncomingWriteHook);                                     
+
+void LLVMExecutionEngineSetMiriCallHook(LLVMExecutionEngineRef EE, 
+                                     MiriStackHook IncomingCallHook);
+
+void LLVMExecutionEngineSetMiriReturnHook(LLVMExecutionEngineRef EE, 
+                                     MiriStackHook IncomingReturnHook); 
 
 /*===-- Operations on memory managers -------------------------------------===*/
 

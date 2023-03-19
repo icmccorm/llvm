@@ -1,7 +1,16 @@
 # See docs/CMake.html for instructions about how to build LLVM with CMake.
 
 cmake_minimum_required(VERSION 3.13.4)
+if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
+  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/cmake-common)
+endif()
 
+# Add path for custom modules.
+list(INSERT CMAKE_MODULE_PATH 0
+  # project-specific module dirs first
+  "${LLVM_COMMON_CMAKE_UTILS}/Modules"
+  )
+  
 # CMP0114: ExternalProject step targets fully adopt their steps.
 # New in CMake 3.19: https://cmake.org/cmake/help/latest/policy/CMP0114.html
 if(POLICY CMP0114)

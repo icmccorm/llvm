@@ -15,6 +15,7 @@
 #define LLVM_EXECUTIONENGINE_EXECUTIONENGINE_H
 
 #include "llvm-c/ExecutionEngine.h"
+#include "llvm-c/Miri.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
@@ -153,6 +154,12 @@ protected:
   std::string getMangledName(const GlobalValue *GV);
 
   std::string ErrMsg;
+
+
+  MiriMemoryHook MiriReadHook = nullptr;
+  MiriMemoryHook MiriWriteHook = nullptr;
+  MiriStackHook MiriCallHook = nullptr;
+  MiriStackHook MiriReturnHook = nullptr;
 
 public:
   /// lock - This lock protects the ExecutionEngine and MCJIT classes. It must
@@ -499,6 +506,27 @@ public:
   void InstallLazyFunctionCreator(FunctionCreator C) {
     LazyFunctionCreator = std::move(C);
   }
+
+  /// setMiriHooks - Register listener functions for memory accesses
+  /// from Miri.
+
+  void setMiriReadHook(MiriMemoryHook IncomingReadHook) {
+                       MiriReadHook = IncomingReadHook;
+                                     }
+
+  void setMiriWriteHook(MiriMemoryHook IncomingWriteHook) {
+                        MiriWriteHook = IncomingWriteHook;
+                                     }     
+  
+  void setMiriCallHook(MiriMemoryHook IncomingCallHook) {
+                      MiriCallHook = IncomingCallHook;
+                                    }    
+
+  void setMiriReturnHook(MiriMemoryHook IncomingReturnHook) {
+                      MiriReturnHook = IncomingReturnHook;
+                                    }     
+
+  
 
 protected:
   ExecutionEngine(DataLayout DL) : DL(std::move(DL)) {}

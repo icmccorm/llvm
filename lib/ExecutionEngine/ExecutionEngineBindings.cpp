@@ -319,6 +319,30 @@ LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
   return false;
 }
 
+void LLVMExecutionEngineSetMiriReadHook(LLVMExecutionEngineRef EE, MiriMemoryHook IncomingReadHook) {
+  assert(IncomingReadHook && "IncomingReadHook must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriReadHook(IncomingReadHook);
+}
+
+void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, MiriHook IncomingWriteHook) {
+  assert(IncomingWriteHook && "IncomingWriteHook must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriWriteHook(IncomingWriteHook);
+}
+
+void LLVMExecutionEngineSetMiriCallHook(LLVMExecutionEngineRef EE, MiriHook IncomingCallHook) {
+  assert(IncomingWriteHook && "IncomingCallHook must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriCallHook(IncomingCallHook);
+}
+
+void LLVMExecutionEngineSetMiriReturnHook(LLVMExecutionEngineRef EE, MiriHook IncomingReturnHook) {
+  assert(IncomingWriteHook && "IncomingReturnHook must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriReturnHook(IncomingReturnHook);
+}
+
 /*===-- Operations on memory managers -------------------------------------===*/
 
 namespace {
