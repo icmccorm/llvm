@@ -65,6 +65,8 @@ unsigned long long LLVMGenericValueToInt(LLVMGenericValueRef GenVal,
 
 void *LLVMGenericValueToPointer(LLVMGenericValueRef GenVal);
 
+void *LLVMGenericValueToPointerWithProvenance(LLVMGenericValueRef GenVal, Provenance Prov);
+
 double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal);
 
 void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal);

@@ -51,6 +51,14 @@ LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P) {
   return wrap(GenVal);
 }
 
+LLVMGenericValueRef LLVMCreateGenericValueOfPointerWithProvenance(void *P, Provenance Prov) {
+  GenericValue *GenVal = new GenericValue();
+  GenVal->PointerVal = P;
+  GenVal->ProvenanceVal = Prov;
+  return wrap(GenVal);
+}
+
+
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
   GenericValue *GenVal = new GenericValue();
   switch (unwrap(TyRef)->getTypeID()) {
