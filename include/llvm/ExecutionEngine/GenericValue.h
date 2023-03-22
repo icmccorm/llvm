@@ -46,7 +46,7 @@ struct GenericValue {
     UIntPairVal.second = 0;
   }
   explicit GenericValue(void *V, Provenance Prov) : PointerVal(V), IntVal(1, 0), ProvenanceVal(Prov) {}
-  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), ProvenanceVal(Provenance {.alloc_id = 0, .borrow_tag = 0}) {}
+  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), ProvenanceVal(Provenance {.alloc_id = 0, .tag = 0}) {}
 };
 
 inline GenericValue ProvenancePointerTOGV(void * P, Provenance Prov) { return GenericValue(P, Prov); }

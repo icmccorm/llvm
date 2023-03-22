@@ -15,8 +15,8 @@
 #define LLVM_C_MIRI_H
 
 typedef struct Provenance {
-    unsigned long long int borrow_tag;
     unsigned long long int alloc_id; 
+    unsigned long long int tag;
 } Provenance;
 
 
