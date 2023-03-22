@@ -36,7 +36,6 @@ struct GenericValue {
   APInt IntVal; // also used for long doubles.
   // For aggregate data types.
   Provenance ProvenanceVal;
-
   std::vector<GenericValue> AggregateVal;
 
   // to make code faster, set GenericValue to zero could be omitted, but it is
@@ -47,9 +46,8 @@ struct GenericValue {
     UIntPairVal.second = 0;
   }
   explicit GenericValue(void *V, Provenance Prov) : PointerVal(V), IntVal(1, 0), ProvenanceVal(Prov) {}
-  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), ProvenanceVal(0) {}
+  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), ProvenanceVal(Provenance {.alloc_id = 0, .borrow_tag = 0}) {}
 };
-
 
 inline GenericValue ProvenancePointerTOGV(void * P, Provenance Prov) { return GenericValue(P, Prov); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }

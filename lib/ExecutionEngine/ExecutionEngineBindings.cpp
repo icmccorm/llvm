@@ -58,7 +58,6 @@ LLVMGenericValueRef LLVMCreateGenericValueOfPointerWithProvenance(void *P, Prove
   return wrap(GenVal);
 }
 
-
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
   GenericValue *GenVal = new GenericValue();
   switch (unwrap(TyRef)->getTypeID()) {
@@ -333,19 +332,19 @@ void LLVMExecutionEngineSetMiriReadHook(LLVMExecutionEngineRef EE, MiriMemoryHoo
   ExecEngine->setMiriReadHook(IncomingReadHook);
 }
 
-void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, MiriHook IncomingWriteHook) {
+void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, MiriMemoryHook IncomingWriteHook) {
   assert(IncomingWriteHook && "IncomingWriteHook must be non-null");
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriWriteHook(IncomingWriteHook);
 }
 
-void LLVMExecutionEngineSetMiriCallHook(LLVMExecutionEngineRef EE, MiriHook IncomingCallHook) {
+void LLVMExecutionEngineSetMiriCallHook(LLVMExecutionEngineRef EE, MiriStackHook IncomingCallHook) {
   assert(IncomingWriteHook && "IncomingCallHook must be non-null");
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriCallHook(IncomingCallHook);
 }
 
-void LLVMExecutionEngineSetMiriReturnHook(LLVMExecutionEngineRef EE, MiriHook IncomingReturnHook) {
+void LLVMExecutionEngineSetMiriReturnHook(LLVMExecutionEngineRef EE, MiriStackHook IncomingReturnHook) {
   assert(IncomingWriteHook && "IncomingReturnHook must be non-null");
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriReturnHook(IncomingReturnHook);

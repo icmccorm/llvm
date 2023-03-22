@@ -914,7 +914,7 @@ void Interpreter::popStackAndReturnValueToCaller(Type *RetTy,
     }
   }
   if(MiriReturnHook != nullptr){
-    MiriReturnHook()
+    MiriReturnHook();
   }
 }
 
@@ -2155,7 +2155,7 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
   StackFrame.VarArgs.assign(ArgVals.begin()+i, ArgVals.end());
 
   if(MiriCallHook != nullptr) {
-    MiriCallHook()
+    MiriCallHook();
   }
 }
 

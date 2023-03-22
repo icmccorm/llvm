@@ -518,11 +518,11 @@ public:
                         MiriWriteHook = IncomingWriteHook;
                                      }     
   
-  void setMiriCallHook(MiriMemoryHook IncomingCallHook) {
+  void setMiriCallHook(MiriStackHook IncomingCallHook) {
                       MiriCallHook = IncomingCallHook;
                                     }    
 
-  void setMiriReturnHook(MiriMemoryHook IncomingReturnHook) {
+  void setMiriReturnHook(MiriStackHook IncomingReturnHook) {
                       MiriReturnHook = IncomingReturnHook;
                                     }     
 

@@ -56,6 +56,8 @@ LLVMGenericValueRef LLVMCreateGenericValueOfInt(LLVMTypeRef Ty,
 
 LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P);
 
+LLVMGenericValueRef LLVMCreateGenericValueOfPointerWithProvenance(void *P, Provenance Prov);
+
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef Ty, double N);
 
 unsigned LLVMGenericValueIntWidth(LLVMGenericValueRef GenValRef);
