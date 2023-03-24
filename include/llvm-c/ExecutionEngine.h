@@ -56,7 +56,9 @@ LLVMGenericValueRef LLVMCreateGenericValueOfInt(LLVMTypeRef Ty,
 
 LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P);
 
-LLVMGenericValueRef LLVMCreateGenericValueOfPointerWithProvenance(void *P, Provenance Prov);
+LLVMGenericValueRef LLVMCreateGenericValueOfPointerWithMetadata(void *P, PointerMetadata Prov);
+
+PointerMetadata LLVMReadPointerMetadataFromGenericValue(LLVMGenericValueRef GenVal);
 
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef Ty, double N);
 
@@ -67,7 +69,7 @@ unsigned long long LLVMGenericValueToInt(LLVMGenericValueRef GenVal,
 
 void *LLVMGenericValueToPointer(LLVMGenericValueRef GenVal);
 
-void *LLVMGenericValueToPointerWithProvenance(LLVMGenericValueRef GenVal, Provenance Prov);
+void *LLVMGenericValueToPointerWithProvenance(LLVMGenericValueRef GenVal, PointerMetadata Prov);
 
 double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal);
 

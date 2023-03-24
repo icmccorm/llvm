@@ -51,11 +51,16 @@ LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P) {
   return wrap(GenVal);
 }
 
-LLVMGenericValueRef LLVMCreateGenericValueOfPointerWithProvenance(void *P, Provenance Prov) {
+LLVMGenericValueRef LLVMCreateGenericValueOfPointerWithMetadata(void *P, PointerMetadata PointerMetaVal) {
   GenericValue *GenVal = new GenericValue();
   GenVal->PointerVal = P;
-  GenVal->ProvenanceVal = Prov;
+  GenVal->PointerMetaVal = PointerMetaVal;
   return wrap(GenVal);
+}
+
+PointerMetadata LLVMReadPointerMetadataFromGenericValue(LLVMGenericValueRef GenValRef) {
+  GenericValue *GenVal = unwrap(GenValRef);
+  return GenVal->PointerMetaVal;
 }
 
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {

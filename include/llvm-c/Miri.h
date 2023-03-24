@@ -14,13 +14,13 @@
 #ifndef LLVM_C_MIRI_H
 #define LLVM_C_MIRI_H
 
-typedef struct Provenance {
+typedef struct PointerMetadata {
     unsigned long long int alloc_id; 
     unsigned long long int tag;
-} Provenance;
+    unsigned long long int offset;
+} PointerMetadata;
 
-
-typedef void (*MiriMemoryHook)(Provenance p);
+typedef void (*MiriMemoryHook)(PointerMetadata p);
 typedef void (*MiriStackHook)(void);
 
 #endif // LLVM_C_MIRI_H

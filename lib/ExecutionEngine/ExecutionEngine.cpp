@@ -1020,7 +1020,7 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
   const unsigned StoreBytes = getDataLayout().getTypeStoreSize(Ty);
 
   if(ExecutionEngine::MiriWriteHook != nullptr){
-    ExecutionEngine::MiriWriteHook(Ptr->ProvenanceVal);
+    ExecutionEngine::MiriWriteHook(Ptr->PointerMetaVal);
   }
 
   switch (Ty->getTypeID()) {
@@ -1075,7 +1075,7 @@ void ExecutionEngine::LoadValueFromMemory(GenericValue &Result,
 
   const unsigned LoadBytes = getDataLayout().getTypeStoreSize(Ty);
   if(ExecutionEngine::MiriReadHook != nullptr){
-    ExecutionEngine::MiriReadHook (Ptr->ProvenanceVal);
+    ExecutionEngine::MiriReadHook (Ptr->PointerMetaVal);
   }
 
   switch (Ty->getTypeID()) {

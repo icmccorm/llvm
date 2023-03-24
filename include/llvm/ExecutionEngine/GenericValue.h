@@ -35,7 +35,7 @@ struct GenericValue {
   };
   APInt IntVal; // also used for long doubles.
   // For aggregate data types.
-  Provenance ProvenanceVal;
+  PointerMetadata PointerMetaVal;
   std::vector<GenericValue> AggregateVal;
 
   // to make code faster, set GenericValue to zero could be omitted, but it is
@@ -45,15 +45,11 @@ struct GenericValue {
     UIntPairVal.first = 0;
     UIntPairVal.second = 0;
   }
-  explicit GenericValue(void *V, Provenance Prov) : PointerVal(V), IntVal(1, 0), ProvenanceVal(Prov) {}
-  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), ProvenanceVal(Provenance {.alloc_id = 0, .tag = 0}) {}
+  explicit GenericValue(void *V, PointerMetadata Meta) : PointerVal(V), IntVal(1, 0), PointerMetaVal(Meta) {}
+  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), PointerMetaVal(PointerMetadata {.alloc_id = 0, .tag = 0, .offset = 0}) {}
 };
-
-inline GenericValue ProvenancePointerTOGV(void * P, Provenance Prov) { return GenericValue(P, Prov); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }
 inline void *GVTOP(const GenericValue &GV) { return GV.PointerVal; }
-
-
 } // end namespace llvm
 
 #endif // LLVM_EXECUTIONENGINE_GENERICVALUE_H
