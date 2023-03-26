@@ -331,13 +331,13 @@ LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
   return false;
 }
 
-void LLVMExecutionEngineSetMiriReadHook(LLVMExecutionEngineRef EE, MiriMemoryHook IncomingReadHook) {
+void LLVMExecutionEngineSetMiriReadHook(LLVMExecutionEngineRef EE, MiriStackedBorrowsHook IncomingReadHook) {
   assert(IncomingReadHook && "IncomingReadHook must be non-null");
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriReadHook(IncomingReadHook);
 }
 
-void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, MiriMemoryHook IncomingWriteHook) {
+void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, MiriStackedBorrowsHook IncomingWriteHook) {
   assert(IncomingWriteHook && "IncomingWriteHook must be non-null");
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriWriteHook(IncomingWriteHook);
@@ -354,6 +354,34 @@ void LLVMExecutionEngineSetMiriReturnHook(LLVMExecutionEngineRef EE, MiriStackHo
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriReturnHook(IncomingReturnHook);
 }
+
+void LLVMExecutionEngineSetMiriMalloc(LLVMExecutionEngineRef EE, 
+                                     MiriAllocationHook Malloc) {
+  assert(Malloc && "Malloc must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriMalloc(Malloc);
+}
+ 
+void LLVMExecutionEngineSetMiriCalloc(LLVMExecutionEngineRef EE, 
+                                     MiriAllocationHook Calloc) {
+  assert(Calloc && "Calloc must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriCalloc(Calloc);
+}                                  
+
+void LLVMExecutionEngineSetMiriRealloc(LLVMExecutionEngineRef EE, 
+                                     MiriReallocationHook Realloc) {
+  assert(Realloc && "Realloc must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriRealloc(Realloc);
+}        
+
+void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE, 
+                                     MiriFreeHook Free) {
+  assert(Free && "Free must be non-null");
+  auto *ExecEngine = unwrap(EE);  
+  ExecEngine->setMiriFree(Free);
+}           
 
 /*===-- Operations on memory managers -------------------------------------===*/
 

@@ -162,16 +162,28 @@ LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
 /*===-- Interoperation with Miri ------------------------------------------===*/
 
 void LLVMExecutionEngineSetMiriReadHook(LLVMExecutionEngineRef EE, 
-                                     MiriMemoryHook IncomingReadHook);
+                                     MiriStackedBorrowsHook IncomingReadHook);
                                      
 void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, 
-                                     MiriMemoryHook IncomingWriteHook);                                     
+                                     MiriStackedBorrowsHook IncomingWriteHook);                                     
 
 void LLVMExecutionEngineSetMiriCallHook(LLVMExecutionEngineRef EE, 
                                      MiriStackHook IncomingCallHook);
 
 void LLVMExecutionEngineSetMiriReturnHook(LLVMExecutionEngineRef EE, 
                                      MiriStackHook IncomingReturnHook); 
+
+void LLVMExecutionEngineSetMiriMalloc(LLVMExecutionEngineRef EE, 
+                                     MiriAllocationHook Malloc); 
+ 
+void LLVMExecutionEngineSetMiriCalloc(LLVMExecutionEngineRef EE, 
+                                     MiriAllocationHook Calloc);                                     
+
+void LLVMExecutionEngineSetMiriRealloc(LLVMExecutionEngineRef EE, 
+                                     MiriReallocationHook Realloc);        
+
+void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE, 
+                                     MiriFreeHook Free);                                     
 
 /*===-- Operations on memory managers -------------------------------------===*/
 

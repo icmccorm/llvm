@@ -20,7 +20,15 @@ typedef struct PointerMetadata {
     unsigned long long int offset;
 } PointerMetadata;
 
-typedef void (*MiriMemoryHook)(PointerMetadata p);
+typedef struct TrackedPointer {
+    void * Pointer;
+    PointerMetadata Metadata;
+} TrackedPointer;
+
+typedef TrackedPointer (*MiriAllocationHook)(unsigned long long int);
+typedef TrackedPointer (*MiriReallocationHook)(TrackedPointer, unsigned long long int);
+typedef void (*MiriFreeHook)(TrackedPointer);
+typedef void (*MiriStackedBorrowsHook)(PointerMetadata p);
 typedef void (*MiriStackHook)(void);
 
 #endif // LLVM_C_MIRI_H
