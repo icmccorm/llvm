@@ -344,13 +344,13 @@ void LLVMExecutionEngineSetMiriWriteHook(LLVMExecutionEngineRef EE, MiriMemoryHo
 }
 
 void LLVMExecutionEngineSetMiriCallHook(LLVMExecutionEngineRef EE, MiriStackHook IncomingCallHook) {
-  assert(IncomingWriteHook && "IncomingCallHook must be non-null");
+  assert(IncomingCallHook && "IncomingCallHook must be non-null");
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriCallHook(IncomingCallHook);
 }
 
 void LLVMExecutionEngineSetMiriReturnHook(LLVMExecutionEngineRef EE, MiriStackHook IncomingReturnHook) {
-  assert(IncomingWriteHook && "IncomingReturnHook must be non-null");
+  assert(IncomingReturnHook && "IncomingReturnHook must be non-null");
   auto *ExecEngine = unwrap(EE);  
   ExecEngine->setMiriReturnHook(IncomingReturnHook);
 }
