@@ -1151,19 +1151,34 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   // Avoid malloc-ing zero bytes, use max()...
   unsigned MemToAlloc = std::max(1U, NumElements * TypeSize);
 
-  // Allocate enough memory to hold the type...
-  void *Memory = safe_malloc(MemToAlloc);
+  if (Interpreter::ExecutionEngine::MiriMalloc != nullptr) {
+    TrackedPointer MiriMemory =
+        Interpreter::ExecutionEngine::MiriMalloc(MemToAlloc);
 
-  LLVM_DEBUG(dbgs() << "Allocated Type: " << *Ty << " (" << TypeSize
-                    << " bytes) x " << NumElements << " (Total: " << MemToAlloc
-                    << ") at " << uintptr_t(Memory) << '\n');
+    LLVM_DEBUG(dbgs() << "Miri Allocated Type: " << *Ty << " (" << TypeSize
+                      << " bytes) x " << NumElements
+                      << " (Total: " << MemToAlloc << ") at "
+                      << uintptr_t(MiriMemory.Pointer) << '\n');
 
-  GenericValue Result = PTOGV(Memory);
-  assert(Result.PointerVal && "Null pointer returned by malloc!");
-  SetValue(&I, Result, SF);
+    GenericValue Result = TrackedPointerTOGV(MiriMemory);
+    assert(Result.PointerVal && "Null pointer returned by MiriMalloc!");
+    SetValue(&I, Result, SF);
+    if (I.getOpcode() == Instruction::Alloca)
+      ECStack.back().MiriAllocas.add(MiriMemory);
+  } else {
+    // Allocate enough memory to hold the type...
+    void *Memory = safe_malloc(MemToAlloc);
 
-  if (I.getOpcode() == Instruction::Alloca)
-    ECStack.back().Allocas.add(Memory);
+    LLVM_DEBUG(dbgs() << "Allocated Type: " << *Ty << " (" << TypeSize
+                      << " bytes) x " << NumElements << " (Total: "
+                      << MemToAlloc << ") at " << uintptr_t(Memory) << '\n');
+    GenericValue Result = PTOGV(Memory);
+    assert(Result.PointerVal && "Null pointer returned by malloc!");
+    SetValue(&I, Result, SF);
+
+    if (I.getOpcode() == Instruction::Alloca)
+      ECStack.back().Allocas.add(Memory);
+  }
 }
 
 // getElementOffset - The workhorse for getelementptr.
@@ -2282,7 +2297,7 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
           ECStack.back().Caller->arg_size() == ArgVals.size()) &&
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
-  ECStack.emplace_back();
+  ECStack.emplace_back(Interpreter::ExecutionEngine::MiriFree);
   ExecutionContext &StackFrame = ECStack.back();
   StackFrame.CurFunction = F;
 

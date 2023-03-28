@@ -39,7 +39,7 @@ LLVM_ATTRIBUTE_RETURNS_NONNULL inline void *safe_calloc(size_t Count,
                                                         size_t Sz) {
   void *Result = std::calloc(Count, Sz);
   if (Result == nullptr) {
-    // It is implementation-defined whether allocation occurs if the space
+    // It is implementation-defined whether allocation occurs if the space 
     // requested is zero (ISO/IEC 9899:2018 7.22.3). Retry, requesting
     // non-zero, if the space requested was zero.
     if (Count == 0 || Sz == 0)

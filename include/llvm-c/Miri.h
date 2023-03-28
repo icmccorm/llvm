@@ -10,7 +10,7 @@
 //
 //
 //===----------------------------------------------------------------------===//
-
+#include <stddef.h>
 #ifndef LLVM_C_MIRI_H
 #define LLVM_C_MIRI_H
 
@@ -25,10 +25,9 @@ typedef struct TrackedPointer {
   PointerMetadata Metadata;
 } TrackedPointer;
 
-typedef TrackedPointer (*MiriAllocationHook)(void *, unsigned long long int);
-typedef TrackedPointer (*MiriReallocationHook)(void *, TrackedPointer,
-                                               unsigned long long int);
-typedef void (*MiriFreeHook)(void *, TrackedPointer);
-typedef void (*MiriStackedBorrowsHook)(void *, PointerMetadata p);
+typedef TrackedPointer (*MiriAllocationHook)(size_t);
+typedef TrackedPointer (*MiriReallocationHook)(void *, TrackedPointer, size_t);
+typedef void (*MiriFreeHook)(TrackedPointer);
+typedef void (*MiriStackedBorrowsHook)(void *, PointerMetadata);
 
 #endif // LLVM_C_MIRI_H

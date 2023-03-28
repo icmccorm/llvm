@@ -48,6 +48,7 @@ struct GenericValue {
   explicit GenericValue(void *V, PointerMetadata Meta) : PointerVal(V), IntVal(1, 0), PointerMetaVal(Meta) {}
   explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), PointerMetaVal(PointerMetadata {.alloc_id = 0, .tag = 0, .offset = 0}) {}
 };
+inline GenericValue TrackedPointerTOGV(TrackedPointer P) { return GenericValue(P.Pointer, P.Metadata); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }
 inline void *GVTOP(const GenericValue &GV) { return GV.PointerVal; }
 } // end namespace llvm
