@@ -153,14 +153,13 @@ protected:
 
   std::string ErrMsg;
 
+  void * MiriWrapper;
   MiriAllocationHook MiriMalloc = nullptr;
   MiriAllocationHook MiriCalloc = nullptr;
   MiriReallocationHook MiriRealloc = nullptr;
   MiriFreeHook MiriFree = nullptr;
   MiriStackedBorrowsHook MiriReadHook = nullptr;
   MiriStackedBorrowsHook MiriWriteHook = nullptr;
-  MiriStackHook MiriCallHook = nullptr;
-  MiriStackHook MiriReturnHook = nullptr;
 
 public:
   /// lock - This lock protects the ExecutionEngine and MCJIT classes. It must
@@ -499,20 +498,16 @@ public:
   /// setMiriHooks - Register listener functions for memory accesses
   /// from Miri.
 
+  void setMiriInterpCxWrapper(void * Wrapper) {
+    MiriWrapper = Wrapper;
+  }
+
   void setMiriReadHook(MiriStackedBorrowsHook IncomingReadHook) {
     MiriReadHook = IncomingReadHook;
   }
 
   void setMiriWriteHook(MiriStackedBorrowsHook IncomingWriteHook) {
     MiriWriteHook = IncomingWriteHook;
-  }
-
-  void setMiriCallHook(MiriStackHook IncomingCallHook) {
-    MiriCallHook = IncomingCallHook;
-  }
-
-  void setMiriReturnHook(MiriStackHook IncomingReturnHook) {
-    MiriReturnHook = IncomingReturnHook;
   }
 
   void setMiriMalloc(MiriAllocationHook IncomingMalloc) {
@@ -526,6 +521,7 @@ public:
   void setMiriRealloc(MiriReallocationHook IncomingRealloc) {
     MiriRealloc = IncomingRealloc;
   }
+
   void setMiriFree(MiriFreeHook IncomingFree) { MiriFree = IncomingFree; }
 
 protected:
