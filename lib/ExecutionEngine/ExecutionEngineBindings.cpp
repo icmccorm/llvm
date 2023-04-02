@@ -27,7 +27,6 @@ using namespace llvm;
 #define DEBUG_TYPE "jit"
 
 // Wrapping the C bindings types.
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(GenericValue, LLVMGenericValueRef)
 
 static LLVMTargetMachineRef wrap(const TargetMachine *P) {
   return reinterpret_cast<LLVMTargetMachineRef>(const_cast<TargetMachine *>(P));
@@ -105,6 +104,22 @@ double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal) {
   default:
     llvm_unreachable("LLVMGenericValueToFloat supports only float and double.");
   }
+}
+
+void LLVMGenericValueSetDoubleValue(LLVMGenericValueRef GenVal,
+                                    double DoubleVal) {
+  unwrap(GenVal)->DoubleVal = DoubleVal;
+}
+
+void LLVMGenericValueSetFloatValue(LLVMGenericValueRef GenVal, float FloatVal) {
+
+  unwrap(GenVal)->FloatVal = FloatVal;
+}
+
+void LLVMGenericValueSetIntValue(LLVMGenericValueRef GenVal, uint8_t *Src,
+                                 unsigned LoadBytes) {
+  unwrap(GenVal)->IntVal = APInt(LoadBytes, 0);
+  LoadIntFromMemory(unwrap(GenVal)->IntVal, Src, LoadBytes);
 }
 
 void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal) {
@@ -329,53 +344,45 @@ LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
   return false;
 }
 
+void LLVMExecutionEngineSetMiriCallbackHook(
+    LLVMExecutionEngineRef EE, MiriCallbackHook IncomingCallbackHook) {
+  assert(IncomingCallbackHook && "IncomingCallbackHook must be non-null");
+  auto *ExecEngine = unwrap(EE);
+  ExecEngine->setMiriCallback(IncomingCallbackHook);
+}
+
 void LLVMExecutionEngineSetMiriInterpCxWrapper(LLVMExecutionEngineRef EE,
                                                void *MiriWrapper) {
   assert(MiriWrapper && "MiriWrapper must be non-null");
   auto *ExecEngine = unwrap(EE);
   ExecEngine->setMiriInterpCxWrapper(MiriWrapper);
 }
-
-void LLVMExecutionEngineSetMiriReadHook(
-    LLVMExecutionEngineRef EE, MiriStackedBorrowsHook IncomingReadHook) {
-  assert(IncomingReadHook && "IncomingReadHook must be non-null");
+void LLVMExecutionEngineSetMiriLoadHook(LLVMExecutionEngineRef EE,
+                                        MiriLoadStoreHook IncomingLoadHook) {
+  assert(IncomingLoadHook && "IncomingLoadHook must be non-null");
   auto *ExecEngine = unwrap(EE);
-  ExecEngine->setMiriReadHook(IncomingReadHook);
+  ExecEngine->setMiriLoadHook(IncomingLoadHook);
 }
 
-void LLVMExecutionEngineSetMiriWriteHook(
-    LLVMExecutionEngineRef EE, MiriStackedBorrowsHook IncomingWriteHook) {
-  assert(IncomingWriteHook && "IncomingWriteHook must be non-null");
+void LLVMExecutionEngineSetMiriStoreHook(LLVMExecutionEngineRef EE,
+                                         MiriLoadStoreHook IncomingStoreHook) {
+  assert(IncomingStoreHook && "IncomingStoreHook must be non-null");
   auto *ExecEngine = unwrap(EE);
-  ExecEngine->setMiriWriteHook(IncomingWriteHook);
+  ExecEngine->setMiriStoreHook(IncomingStoreHook);
 }
 
 void LLVMExecutionEngineSetMiriMalloc(LLVMExecutionEngineRef EE,
-                                      MiriAllocationHook Malloc) {
-  assert(Malloc && "Malloc must be non-null");
+                                         MiriAllocationHook IncomingMalloc) {
+  assert(IncomingMalloc && "IncomingMalloc must be non-null");
   auto *ExecEngine = unwrap(EE);
-  ExecEngine->setMiriMalloc(Malloc);
-}
-
-void LLVMExecutionEngineSetMiriCalloc(LLVMExecutionEngineRef EE,
-                                      MiriAllocationHook Calloc) {
-  assert(Calloc && "Calloc must be non-null");
-  auto *ExecEngine = unwrap(EE);
-  ExecEngine->setMiriCalloc(Calloc);
-}
-
-void LLVMExecutionEngineSetMiriRealloc(LLVMExecutionEngineRef EE,
-                                       MiriReallocationHook Realloc) {
-  assert(Realloc && "Realloc must be non-null");
-  auto *ExecEngine = unwrap(EE);
-  ExecEngine->setMiriRealloc(Realloc);
+  ExecEngine->setMiriMalloc(IncomingMalloc);
 }
 
 void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE,
-                                    MiriFreeHook Free) {
-  assert(Free && "Free must be non-null");
+                                         MiriFreeHook IncomingFree) {
+  assert(IncomingFree && "IncomingFree must be non-null");
   auto *ExecEngine = unwrap(EE);
-  ExecEngine->setMiriFree(Free);
+  ExecEngine->setMiriFree(IncomingFree);
 }
 
 /*===-- Operations on memory managers -------------------------------------===*/

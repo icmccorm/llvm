@@ -76,6 +76,14 @@ void *LLVMGenericValueToPointerWithProvenance(LLVMGenericValueRef GenVal,
 
 double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal);
 
+void LLVMGenericValueSetDoubleValue(LLVMGenericValueRef GenVal,
+                                    double DoubleVal);
+
+void LLVMGenericValueSetFloatValue(LLVMGenericValueRef GenVal, float FloatVal);
+
+void LLVMGenericValueSetIntValue(LLVMGenericValueRef GenVal, uint8_t *Src,
+                                 unsigned LoadBytes);
+
 void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal);
 
 /*===-- Operations on execution engines -----------------------------------===*/
@@ -162,26 +170,23 @@ LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
                                       char **OutError);
 /*===-- Interoperation with Miri ------------------------------------------===*/
 
+void LLVMExecutionEngineSetMiriCallbackHook(
+    LLVMExecutionEngineRef EE, MiriCallbackHook IncomingCallbackHook);
+
 void LLVMExecutionEngineSetMiriInterpCxWrapper(LLVMExecutionEngineRef EE,
                                                void *MiriWrapper);
 
-void LLVMExecutionEngineSetMiriReadHook(
-    LLVMExecutionEngineRef EE, MiriStackedBorrowsHook IncomingReadHook);
+void LLVMExecutionEngineSetMiriLoadHook(LLVMExecutionEngineRef EE,
+                                        MiriLoadStoreHook IncomingLoadHook);
 
-void LLVMExecutionEngineSetMiriWriteHook(
-    LLVMExecutionEngineRef EE, MiriStackedBorrowsHook IncomingWriteHook);
+void LLVMExecutionEngineSetMiriStoreHook(LLVMExecutionEngineRef EE,
+                                         MiriLoadStoreHook IncomingStoreHook);
 
 void LLVMExecutionEngineSetMiriMalloc(LLVMExecutionEngineRef EE,
-                                      MiriAllocationHook Malloc);
-
-void LLVMExecutionEngineSetMiriCalloc(LLVMExecutionEngineRef EE,
-                                      MiriAllocationHook Calloc);
-
-void LLVMExecutionEngineSetMiriRealloc(LLVMExecutionEngineRef EE,
-                                       MiriReallocationHook Realloc);
+                                      MiriAllocationHook IncomingMallocHook);
 
 void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE,
-                                    MiriFreeHook Free);
+                                    MiriFreeHook IncomingFreeHook);
 
 /*===-- Operations on memory managers -------------------------------------===*/
 

@@ -51,6 +51,7 @@ struct GenericValue {
 inline GenericValue TrackedPointerTOGV(TrackedPointer P) { return GenericValue(P.Pointer, P.Metadata); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }
 inline void *GVTOP(const GenericValue &GV) { return GV.PointerVal; }
+inline TrackedPointer GVTOTrackedPointer(const GenericValue &GV) { return TrackedPointer{GV.PointerVal, GV.PointerMetaVal}; }
 } // end namespace llvm
 
 #endif // LLVM_EXECUTIONENGINE_GENERICVALUE_H

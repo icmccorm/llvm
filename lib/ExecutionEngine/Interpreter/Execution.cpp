@@ -1152,8 +1152,8 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   unsigned MemToAlloc = std::max(1U, NumElements * TypeSize);
 
   if (Interpreter::ExecutionEngine::MiriMalloc != nullptr) {
-    TrackedPointer MiriMemory =
-        Interpreter::ExecutionEngine::MiriMalloc(MemToAlloc);
+    TrackedPointer MiriMemory = Interpreter::ExecutionEngine::MiriMalloc(
+        Interpreter::ExecutionEngine::MiriWrapper, MemToAlloc);
 
     LLVM_DEBUG(dbgs() << "Miri Allocated Type: " << *Ty << " (" << TypeSize
                       << " bytes) x " << NumElements
@@ -1233,9 +1233,19 @@ void Interpreter::visitGetElementPtrInst(GetElementPtrInst &I) {
 void Interpreter::visitLoadInst(LoadInst &I) {
   ExecutionContext &SF = ECStack.back();
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
-  GenericValue *Ptr = (GenericValue *)GVTOP(SRC);
   GenericValue Result;
-  LoadValueFromMemory(Result, Ptr, I.getType());
+  PointerMetadata Meta = SRC.PointerMetaVal;
+  if (Meta.alloc_id != 0) {
+    LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
+                      << Meta.alloc_id << " ");
+    TrackedPointer Tracked = GVTOTrackedPointer(SRC);
+    Interpreter::ExecutionEngine::LoadFromMiriMemory(&Result, Tracked,
+                                                     I.getType());
+  } else {
+    LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
+    GenericValue *Ptr = (GenericValue *)GVTOP(SRC);
+    LoadValueFromMemory(Result, Ptr, I.getType());
+  }
   SetValue(&I, Result, SF);
   if (I.isVolatile() && PrintVolatile)
     dbgs() << "Volatile load " << I;
@@ -1245,8 +1255,17 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   ExecutionContext &SF = ECStack.back();
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
-  StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
-                     I.getOperand(0)->getType());
+  PointerMetadata Meta = SRC.PointerMetaVal;
+  if (Meta.alloc_id != 0) {
+    LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
+                      << Meta.alloc_id << " ");
+    TrackedPointer Tracked = GVTOTrackedPointer(SRC);
+    Interpreter::ExecutionEngine::StoreToMiriMemory(&Val, Tracked, I.getType());
+  } else {
+    LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
+    StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
+                       I.getOperand(0)->getType());
+  }
   if (I.isVolatile() && PrintVolatile)
     dbgs() << "Volatile store: " << I;
 }
@@ -2297,7 +2316,8 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
           ECStack.back().Caller->arg_size() == ArgVals.size()) &&
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
-  ECStack.emplace_back(Interpreter::ExecutionEngine::MiriFree);
+  ECStack.emplace_back(Interpreter::ExecutionEngine::MiriWrapper,
+                       Interpreter::ExecutionEngine::MiriFree);
   ExecutionContext &StackFrame = ECStack.back();
   StackFrame.CurFunction = F;
 

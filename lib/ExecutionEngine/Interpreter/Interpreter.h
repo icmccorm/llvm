@@ -53,16 +53,16 @@ public:
 class MiriAllocaHolder {
   std::vector<TrackedPointer> MiriAllocations;
   MiriFreeHook MiriFree;
-
+  void * MiriWrapper;
 public:
-  MiriAllocaHolder(MiriFreeHook Free) { MiriFree = Free; }
+  MiriAllocaHolder(void * Wrapper, MiriFreeHook Free) { MiriWrapper = Wrapper; MiriFree = Free; }
   // Make this type move-only.
   MiriAllocaHolder(MiriAllocaHolder &&) = default;
   MiriAllocaHolder &operator=(MiriAllocaHolder &&RHS) = default;
 
   ~MiriAllocaHolder() {
     for (TrackedPointer Tracked : MiriAllocations)
-      MiriFree(Tracked);
+      MiriFree(MiriWrapper, Tracked);
   }
 
   void add(TrackedPointer Tracked) { MiriAllocations.push_back(Tracked); }
@@ -83,7 +83,7 @@ struct ExecutionContext {
   std::vector<GenericValue> VarArgs;      // Values passed through an ellipsis
   AllocaHolder Allocas;                   // Track memory allocated by alloca
   MiriAllocaHolder MiriAllocas;
-  ExecutionContext(MiriFreeHook MiriFree) : CurFunction(nullptr), CurBB(nullptr), CurInst(nullptr), MiriAllocas(MiriFree) {}
+  ExecutionContext(void * Wrapper, MiriFreeHook MiriFree) : CurFunction(nullptr), CurBB(nullptr), CurInst(nullptr), MiriAllocas(Wrapper, MiriFree) {}
 };
 
 // Interpreter - This class represents the entirety of the interpreter.

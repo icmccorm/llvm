@@ -1054,19 +1054,6 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
                                          GenericValue *Ptr, Type *Ty) {
   const unsigned StoreBytes = getDataLayout().getTypeStoreSize(Ty);
 
-  if (ExecutionEngine::MiriWriteHook != nullptr) {
-    if (ExecutionEngine::MiriWrapper != nullptr) {
-      ExecutionEngine::MiriWriteHook(ExecutionEngine::MiriWrapper,
-                                     Ptr->PointerMetaVal);
-    } else {
-      SmallString<256> Msg;
-      raw_svector_ostream OS(Msg);
-      OS << "Attempted to call Miri write hook, but there wasn't a valid "
-            "pointer to the interpreter.";
-      report_fatal_error(OS.str());
-    }
-  }
-
   switch (Ty->getTypeID()) {
   default:
     dbgs() << "Cannot store value of type " << *Ty << "!\n";
@@ -1112,24 +1099,39 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
     std::reverse((uint8_t *)Ptr, StoreBytes + (uint8_t *)Ptr);
 }
 
+void ExecutionEngine::LoadFromMiriMemory(GenericValue *Dest,
+                                         TrackedPointer Source, Type *DestTy) {
+  LLVMGenericValueRef DestRef = wrap(Dest);
+  LLVMTypeRef DestTyRef = wrap(DestTy);
+  ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, DestRef, Source,
+                            DestTyRef);
+}
+void ExecutionEngine::StoreToMiriMemory(GenericValue *Source,
+                                        TrackedPointer Dest, Type *SourceTy) {
+  LLVMGenericValueRef SourceRef = wrap(Source);
+  LLVMTypeRef SourceTyRef = wrap(SourceTy);
+  ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, SourceRef, Dest,
+                            SourceTyRef);
+}
+GenericValue *
+ExecutionEngine::CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
+  StringRef Name = F->getName();
+  const char *NamePtr = Name.data();
+  size_t NameLength = Name.size();
+  size_t NumArgs = ArgVals.size();
+  const GenericValue *Args = ArgVals.data();
+  LLVMGenericValueRef ArgsRef = wrap(Args);
+  LLVMGenericValueRef ResultRef = ExecutionEngine::MiriCallback(
+      ExecutionEngine::MiriWrapper, ArgsRef, NumArgs, NamePtr, NameLength);
+  GenericValue *Result = unwrap(ResultRef);
+  return Result;
+}
 /// FIXME: document
 ///
 void ExecutionEngine::LoadValueFromMemory(GenericValue &Result,
                                           GenericValue *Ptr, Type *Ty) {
 
   const unsigned LoadBytes = getDataLayout().getTypeStoreSize(Ty);
-  if (ExecutionEngine::MiriReadHook != nullptr) {
-    if (ExecutionEngine::MiriWrapper != nullptr) {
-      ExecutionEngine::MiriReadHook(ExecutionEngine::MiriWrapper,
-                                    Ptr->PointerMetaVal);
-    } else {
-      SmallString<256> Msg;
-      raw_svector_ostream OS(Msg);
-      OS << "Attempted to call Miri read hook, but there wasn't a valid "
-            "pointer to the interpreter.";
-      report_fatal_error(OS.str());
-    }
-  }
 
   switch (Ty->getTypeID()) {
   case Type::IntegerTyID:

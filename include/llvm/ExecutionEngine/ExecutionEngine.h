@@ -53,6 +53,8 @@ class RTDyldMemoryManager;
 class Triple;
 class Type;
 
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(GenericValue, LLVMGenericValueRef)
+
 namespace object {
 
 class Archive;
@@ -153,13 +155,12 @@ protected:
 
   std::string ErrMsg;
 
-  void * MiriWrapper;
+  void *MiriWrapper;
   MiriAllocationHook MiriMalloc = nullptr;
-  MiriAllocationHook MiriCalloc = nullptr;
-  MiriReallocationHook MiriRealloc = nullptr;
   MiriFreeHook MiriFree = nullptr;
-  MiriStackedBorrowsHook MiriReadHook = nullptr;
-  MiriStackedBorrowsHook MiriWriteHook = nullptr;
+  MiriCallbackHook MiriCallback = nullptr;
+  MiriLoadStoreHook MiriLoad = nullptr;
+  MiriLoadStoreHook MiriStore = nullptr;
 
 public:
   /// lock - This lock protects the ExecutionEngine and MCJIT classes. It must
@@ -498,31 +499,35 @@ public:
   /// setMiriHooks - Register listener functions for memory accesses
   /// from Miri.
 
-  void setMiriInterpCxWrapper(void * Wrapper) {
-    MiriWrapper = Wrapper;
+  void LoadFromMiriMemory(GenericValue *Dest,
+                                           TrackedPointer Source, Type *DestTy);
+
+  void StoreToMiriMemory(GenericValue *Source,
+                                          TrackedPointer Dest, Type *SourceTy);
+
+  GenericValue *CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals);
+
+  void setMiriInterpCxWrapper(void *Wrapper) { MiriWrapper = Wrapper; }
+
+  void setMiriCallback(MiriCallbackHook IncomingCallback) {
+    MiriCallback = IncomingCallback;
   }
 
-  void setMiriReadHook(MiriStackedBorrowsHook IncomingReadHook) {
-    MiriReadHook = IncomingReadHook;
+  void setMiriLoadHook(MiriLoadStoreHook IncomingLoadHook) {
+    MiriLoad = IncomingLoadHook;
   }
 
-  void setMiriWriteHook(MiriStackedBorrowsHook IncomingWriteHook) {
-    MiriWriteHook = IncomingWriteHook;
+  void setMiriStoreHook(MiriLoadStoreHook IncomingStoreHook) {
+    MiriStore = IncomingStoreHook;
   }
 
   void setMiriMalloc(MiriAllocationHook IncomingMalloc) {
     MiriMalloc = IncomingMalloc;
   }
 
-  void setMiriCalloc(MiriAllocationHook IncomingCalloc) {
-    MiriCalloc = IncomingCalloc;
+  void setMiriFree(MiriFreeHook IncomingFree) {
+    MiriFree = IncomingFree;
   }
-
-  void setMiriRealloc(MiriReallocationHook IncomingRealloc) {
-    MiriRealloc = IncomingRealloc;
-  }
-
-  void setMiriFree(MiriFreeHook IncomingFree) { MiriFree = IncomingFree; }
 
 protected:
   ExecutionEngine(DataLayout DL) : DL(std::move(DL)) {}
