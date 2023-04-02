@@ -35,7 +35,7 @@ typedef struct TrackedPointer {
 
 typedef TrackedPointer (*MiriAllocationHook)(void *, size_t);
 typedef void (*MiriFreeHook)(void *, TrackedPointer);              
-typedef void (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, TrackedPointer, LLVMTypeRef);
+typedef void (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, TrackedPointer, LLVMTypeRef, const unsigned);
 typedef LLVMGenericValueRef (*MiriCallbackHook)(void *, LLVMGenericValueRef, size_t, const char *, size_t);
 
 LLVM_C_EXTERN_C_END

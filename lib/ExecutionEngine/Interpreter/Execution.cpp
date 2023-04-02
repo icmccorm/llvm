@@ -1152,6 +1152,9 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   unsigned MemToAlloc = std::max(1U, NumElements * TypeSize);
 
   if (Interpreter::ExecutionEngine::MiriMalloc != nullptr) {
+    assert(Interpreter::ExecutionEngine::MiriWrapper != nullptr &&
+           "MiriWrapper is null!");
+
     TrackedPointer MiriMemory = Interpreter::ExecutionEngine::MiriMalloc(
         Interpreter::ExecutionEngine::MiriWrapper, MemToAlloc);
 
@@ -1236,11 +1239,14 @@ void Interpreter::visitLoadInst(LoadInst &I) {
   GenericValue Result;
   PointerMetadata Meta = SRC.PointerMetaVal;
   if (Meta.alloc_id != 0) {
+
     LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
                       << Meta.alloc_id << " ");
+    const unsigned LoadBytes = getDataLayout().getTypeStoreSize(I.getType());
+
     TrackedPointer Tracked = GVTOTrackedPointer(SRC);
     Interpreter::ExecutionEngine::LoadFromMiriMemory(&Result, Tracked,
-                                                     I.getType());
+                                                     I.getType(), LoadBytes);
   } else {
     LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
     GenericValue *Ptr = (GenericValue *)GVTOP(SRC);
@@ -1259,8 +1265,10 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   if (Meta.alloc_id != 0) {
     LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
                       << Meta.alloc_id << " ");
+    const unsigned StoreBytes = getDataLayout().getTypeStoreSize(I.getType());
     TrackedPointer Tracked = GVTOTrackedPointer(SRC);
-    Interpreter::ExecutionEngine::StoreToMiriMemory(&Val, Tracked, I.getType());
+    Interpreter::ExecutionEngine::StoreToMiriMemory(&Val, Tracked, I.getType(),
+                                                    StoreBytes);
   } else {
     LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
     StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
@@ -2316,6 +2324,7 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
           ECStack.back().Caller->arg_size() == ArgVals.size()) &&
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
+
   ECStack.emplace_back(Interpreter::ExecutionEngine::MiriWrapper,
                        Interpreter::ExecutionEngine::MiriFree);
   ExecutionContext &StackFrame = ECStack.back();

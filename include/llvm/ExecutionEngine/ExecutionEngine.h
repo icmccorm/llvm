@@ -155,7 +155,7 @@ protected:
 
   std::string ErrMsg;
 
-  void *MiriWrapper;
+  void *MiriWrapper = nullptr;
   MiriAllocationHook MiriMalloc = nullptr;
   MiriFreeHook MiriFree = nullptr;
   MiriCallbackHook MiriCallback = nullptr;
@@ -500,10 +500,10 @@ public:
   /// from Miri.
 
   void LoadFromMiriMemory(GenericValue *Dest,
-                                           TrackedPointer Source, Type *DestTy);
+                                           TrackedPointer Source, Type *DestTy, const unsigned LoadBytes);
 
   void StoreToMiriMemory(GenericValue *Source,
-                                          TrackedPointer Dest, Type *SourceTy);
+                                          TrackedPointer Dest, Type *SourceTy, const unsigned StoreBytes);
 
   GenericValue *CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals);
 

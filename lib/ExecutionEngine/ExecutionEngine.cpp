@@ -1100,18 +1100,18 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
 }
 
 void ExecutionEngine::LoadFromMiriMemory(GenericValue *Dest,
-                                         TrackedPointer Source, Type *DestTy) {
+                                         TrackedPointer Source, Type *DestTy, const unsigned LoadBytes) {
   LLVMGenericValueRef DestRef = wrap(Dest);
   LLVMTypeRef DestTyRef = wrap(DestTy);
   ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, DestRef, Source,
-                            DestTyRef);
+                            DestTyRef, LoadBytes);
 }
 void ExecutionEngine::StoreToMiriMemory(GenericValue *Source,
-                                        TrackedPointer Dest, Type *SourceTy) {
+                                        TrackedPointer Dest, Type *SourceTy, const unsigned StoreBytes) {
   LLVMGenericValueRef SourceRef = wrap(Source);
   LLVMTypeRef SourceTyRef = wrap(SourceTy);
   ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, SourceRef, Dest,
-                            SourceTyRef);
+                            SourceTyRef, StoreBytes);
 }
 GenericValue *
 ExecutionEngine::CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
