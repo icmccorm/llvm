@@ -500,10 +500,10 @@ public:
   /// from Miri.
 
   void LoadFromMiriMemory(GenericValue *Dest,
-                                           TrackedPointer Source, Type *DestTy, const unsigned LoadBytes);
+                                           MiriPointer Source, Type *DestTy, const unsigned LoadBytes);
 
   void StoreToMiriMemory(GenericValue *Source,
-                                          TrackedPointer Dest, Type *SourceTy, const unsigned StoreBytes);
+                                          MiriPointer Dest, Type *SourceTy, const unsigned StoreBytes);
 
   GenericValue *CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals);
 

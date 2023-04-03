@@ -1154,31 +1154,26 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   if (Interpreter::ExecutionEngine::MiriMalloc != nullptr) {
     assert(Interpreter::ExecutionEngine::MiriWrapper != nullptr &&
            "MiriWrapper is null!");
-
-    TrackedPointer MiriMemory = Interpreter::ExecutionEngine::MiriMalloc(
+    MiriPointer MiriPointerVal = Interpreter::ExecutionEngine::MiriMalloc(
         Interpreter::ExecutionEngine::MiriWrapper, MemToAlloc);
-
     LLVM_DEBUG(dbgs() << "Miri Allocated Type: " << *Ty << " (" << TypeSize
                       << " bytes) x " << NumElements
                       << " (Total: " << MemToAlloc << ") at "
-                      << uintptr_t(MiriMemory.Pointer) << '\n');
-
-    GenericValue Result = TrackedPointerTOGV(MiriMemory);
-    assert(Result.PointerVal && "Null pointer returned by MiriMalloc!");
+                      << uintptr_t(MiriPointerVal.addr) << '\n');
+    assert(MiriPointerVal.addr != 0 && "Null pointer returned by MiriMalloc!");
+    GenericValue Result = MiriPointerTOGV(MiriPointerVal);
     SetValue(&I, Result, SF);
     if (I.getOpcode() == Instruction::Alloca)
-      ECStack.back().MiriAllocas.add(MiriMemory);
+      ECStack.back().MiriAllocas.add(MiriPointerVal);
   } else {
     // Allocate enough memory to hold the type...
     void *Memory = safe_malloc(MemToAlloc);
-
     LLVM_DEBUG(dbgs() << "Allocated Type: " << *Ty << " (" << TypeSize
                       << " bytes) x " << NumElements << " (Total: "
                       << MemToAlloc << ") at " << uintptr_t(Memory) << '\n');
     GenericValue Result = PTOGV(Memory);
     assert(Result.PointerVal && "Null pointer returned by malloc!");
     SetValue(&I, Result, SF);
-
     if (I.getOpcode() == Instruction::Alloca)
       ECStack.back().Allocas.add(Memory);
   }
@@ -1237,14 +1232,14 @@ void Interpreter::visitLoadInst(LoadInst &I) {
   ExecutionContext &SF = ECStack.back();
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   GenericValue Result;
-  PointerMetadata Meta = SRC.PointerMetaVal;
-  if (Meta.alloc_id != 0) {
+  MiriPointer MiriPointerVal = SRC.MiriPointerVal;
+  if (MiriPointerVal.alloc_id != 0) {
 
     LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
-                      << Meta.alloc_id << " ");
+                      << MiriPointerVal.addr << " ");
     const unsigned LoadBytes = getDataLayout().getTypeStoreSize(I.getType());
 
-    TrackedPointer Tracked = GVTOTrackedPointer(SRC);
+    MiriPointer Tracked = GVTOMiriPointer(SRC);
     Interpreter::ExecutionEngine::LoadFromMiriMemory(&Result, Tracked,
                                                      I.getType(), LoadBytes);
   } else {
@@ -1261,14 +1256,15 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   ExecutionContext &SF = ECStack.back();
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
-  PointerMetadata Meta = SRC.PointerMetaVal;
-  if (Meta.alloc_id != 0) {
-    LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
-                      << Meta.alloc_id << " ");
-    const unsigned StoreBytes = getDataLayout().getTypeStoreSize(I.getType());
-    TrackedPointer Tracked = GVTOTrackedPointer(SRC);
-    Interpreter::ExecutionEngine::StoreToMiriMemory(&Val, Tracked, I.getType(),
-                                                    StoreBytes);
+  MiriPointer MiriPointerVal = SRC.MiriPointerVal;
+  if (MiriPointerVal.alloc_id != 0) {
+    LLVM_DEBUG(dbgs() << "Storing value to Miri memory, AllocID: "
+                      << MiriPointerVal.alloc_id << " ");
+    const unsigned StoreBytes =
+        getDataLayout().getTypeStoreSize(I.getOperand(0)->getType());
+    MiriPointer Tracked = GVTOMiriPointer(SRC);
+    Interpreter::ExecutionEngine::StoreToMiriMemory(
+        &Val, Tracked, I.getOperand(0)->getType(), StoreBytes);
   } else {
     LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
     StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),

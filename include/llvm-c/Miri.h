@@ -22,20 +22,16 @@ LLVM_C_EXTERN_C_BEGIN
 
 typedef struct LLVMOpaqueGenericValue *LLVMGenericValueRef;
 
-typedef struct PointerMetadata {
+typedef struct MiriPointer {
+  unsigned long long int addr;
   unsigned long long int alloc_id;
   unsigned long long int tag;
   unsigned long long int offset;
-} PointerMetadata;
+} MiriPointer;
 
-typedef struct TrackedPointer {
-  void *Pointer;
-  PointerMetadata Metadata;
-} TrackedPointer;
-
-typedef TrackedPointer (*MiriAllocationHook)(void *, size_t);
-typedef void (*MiriFreeHook)(void *, TrackedPointer);              
-typedef void (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, TrackedPointer, LLVMTypeRef, const unsigned);
+typedef MiriPointer (*MiriAllocationHook)(void *, size_t);
+typedef void (*MiriFreeHook)(void *, MiriPointer);              
+typedef void (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer, LLVMTypeRef, const unsigned);
 typedef LLVMGenericValueRef (*MiriCallbackHook)(void *, LLVMGenericValueRef, size_t, const char *, size_t);
 
 LLVM_C_EXTERN_C_END

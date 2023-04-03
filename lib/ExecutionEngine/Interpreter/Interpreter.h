@@ -51,7 +51,7 @@ public:
 };
 
 class MiriAllocaHolder {
-  std::vector<TrackedPointer> MiriAllocations;
+  std::vector<MiriPointer> MiriAllocations;
   MiriFreeHook MiriFree;
   void * MiriWrapper;
 public:
@@ -61,11 +61,11 @@ public:
   MiriAllocaHolder &operator=(MiriAllocaHolder &&RHS) = default;
 
   ~MiriAllocaHolder() {
-    for (TrackedPointer Tracked : MiriAllocations)
+    for (MiriPointer Tracked : MiriAllocations)
       MiriFree(MiriWrapper, Tracked);
   }
 
-  void add(TrackedPointer Tracked) { MiriAllocations.push_back(Tracked); }
+  void add(MiriPointer Tracked) { MiriAllocations.push_back(Tracked); }
 };
 
 typedef std::vector<GenericValue> ValuePlaneTy;

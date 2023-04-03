@@ -35,7 +35,7 @@ struct GenericValue {
   };
   APInt IntVal; // also used for long doubles.
   // For aggregate data types.
-  PointerMetadata PointerMetaVal;
+  MiriPointer MiriPointerVal;
   std::vector<GenericValue> AggregateVal;
 
   // to make code faster, set GenericValue to zero could be omitted, but it is
@@ -45,13 +45,13 @@ struct GenericValue {
     UIntPairVal.first = 0;
     UIntPairVal.second = 0;
   }
-  explicit GenericValue(void *V, PointerMetadata Meta) : PointerVal(V), IntVal(1, 0), PointerMetaVal(Meta) {}
-  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), PointerMetaVal(PointerMetadata {.alloc_id = 0, .tag = 0, .offset = 0}) {}
+  explicit GenericValue(MiriPointer Meta) : PointerVal(nullptr), IntVal(1, 0), MiriPointerVal(Meta) {}
+  explicit GenericValue(void *V) : PointerVal(V), IntVal(1, 0), MiriPointerVal({.addr = 0, .alloc_id = 0, .tag = 0, .offset = 0}) {}
 };
-inline GenericValue TrackedPointerTOGV(TrackedPointer P) { return GenericValue(P.Pointer, P.Metadata); }
+inline GenericValue MiriPointerTOGV(MiriPointer P) { return GenericValue(P); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }
 inline void *GVTOP(const GenericValue &GV) { return GV.PointerVal; }
-inline TrackedPointer GVTOTrackedPointer(const GenericValue &GV) { return TrackedPointer{GV.PointerVal, GV.PointerMetaVal}; }
+inline MiriPointer GVTOMiriPointer(const GenericValue &GV) { return GV.MiriPointerVal; }
 } // end namespace llvm
 
 #endif // LLVM_EXECUTIONENGINE_GENERICVALUE_H

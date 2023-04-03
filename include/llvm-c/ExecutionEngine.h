@@ -36,7 +36,6 @@ LLVM_C_EXTERN_C_BEGIN
 void LLVMLinkInMCJIT(void);
 void LLVMLinkInInterpreter(void);
 
-typedef struct LLVMOpaqueGenericValue *LLVMGenericValueRef;
 typedef struct LLVMOpaqueExecutionEngine *LLVMExecutionEngineRef;
 typedef struct LLVMOpaqueMCJITMemoryManager *LLVMMCJITMemoryManagerRef;
 
@@ -56,11 +55,7 @@ LLVMGenericValueRef LLVMCreateGenericValueOfInt(LLVMTypeRef Ty,
 
 LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P);
 
-LLVMGenericValueRef
-LLVMCreateGenericValueOfPointerWithMetadata(void *P, PointerMetadata Prov);
-
-PointerMetadata
-LLVMReadPointerMetadataFromGenericValue(LLVMGenericValueRef GenVal);
+LLVMGenericValueRef LLVMCreateGenericValueOfMiriPointer(MiriPointer Prov);
 
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef Ty, double N);
 
@@ -71,8 +66,7 @@ unsigned long long LLVMGenericValueToInt(LLVMGenericValueRef GenVal,
 
 void *LLVMGenericValueToPointer(LLVMGenericValueRef GenVal);
 
-void *LLVMGenericValueToPointerWithProvenance(LLVMGenericValueRef GenVal,
-                                              PointerMetadata Prov);
+MiriPointer LLVMGenericValueToMiriPointer(LLVMGenericValueRef GenVal);
 
 double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal);
 

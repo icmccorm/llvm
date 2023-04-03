@@ -49,18 +49,14 @@ LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P) {
 }
 
 LLVMGenericValueRef
-LLVMCreateGenericValueOfPointerWithMetadata(void *P,
-                                            PointerMetadata PointerMetaVal) {
+LLVMCreateGenericValueOfMiriPointer(MiriPointer PointerMetaVal) {
   GenericValue *GenVal = new GenericValue();
-  GenVal->PointerVal = P;
-  GenVal->PointerMetaVal = PointerMetaVal;
+  GenVal->MiriPointerVal = PointerMetaVal;
   return wrap(GenVal);
 }
 
-PointerMetadata
-LLVMReadPointerMetadataFromGenericValue(LLVMGenericValueRef GenValRef) {
-  GenericValue *GenVal = unwrap(GenValRef);
-  return GenVal->PointerMetaVal;
+MiriPointer LLVMGenericValueToMiriPointer(LLVMGenericValueRef GenValRef) {
+  return unwrap(GenValRef)->MiriPointerVal;
 }
 
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
@@ -372,14 +368,14 @@ void LLVMExecutionEngineSetMiriStoreHook(LLVMExecutionEngineRef EE,
 }
 
 void LLVMExecutionEngineSetMiriMalloc(LLVMExecutionEngineRef EE,
-                                         MiriAllocationHook IncomingMalloc) {
+                                      MiriAllocationHook IncomingMalloc) {
   assert(IncomingMalloc && "IncomingMalloc must be non-null");
   auto *ExecEngine = unwrap(EE);
   ExecEngine->setMiriMalloc(IncomingMalloc);
 }
 
 void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE,
-                                         MiriFreeHook IncomingFree) {
+                                    MiriFreeHook IncomingFree) {
   assert(IncomingFree && "IncomingFree must be non-null");
   auto *ExecEngine = unwrap(EE);
   ExecEngine->setMiriFree(IncomingFree);
