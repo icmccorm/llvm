@@ -53,9 +53,13 @@ public:
 class MiriAllocaHolder {
   std::vector<MiriPointer> MiriAllocations;
   MiriFreeHook MiriFree;
-  void * MiriWrapper;
+  void *MiriWrapper;
+
 public:
-  MiriAllocaHolder(void * Wrapper, MiriFreeHook Free) { MiriWrapper = Wrapper; MiriFree = Free; }
+  MiriAllocaHolder(void *Wrapper, MiriFreeHook Free) {
+    MiriWrapper = Wrapper;
+    MiriFree = Free;
+  }
   // Make this type move-only.
   MiriAllocaHolder(MiriAllocaHolder &&) = default;
   MiriAllocaHolder &operator=(MiriAllocaHolder &&RHS) = default;
@@ -83,22 +87,30 @@ struct ExecutionContext {
   std::vector<GenericValue> VarArgs;      // Values passed through an ellipsis
   AllocaHolder Allocas;                   // Track memory allocated by alloca
   MiriAllocaHolder MiriAllocas;
-  ExecutionContext(void * Wrapper, MiriFreeHook MiriFree) : CurFunction(nullptr), CurBB(nullptr), CurInst(nullptr), MiriAllocas(Wrapper, MiriFree) {}
+  ExecutionContext(void *Wrapper, MiriFreeHook MiriFree)
+      : CurFunction(nullptr), CurBB(nullptr), CurInst(nullptr),
+        MiriAllocas(Wrapper, MiriFree) {}
+};
+
+class ExecutionPath {
+public:
+  // The runtime stack of executing code.  The top of the stack is the current
+  // function record.
+  std::vector<ExecutionContext> ECStack;
+  GenericValue ExitValue; // The return value of the called function
+  ExecutionPath() { memset(&ExitValue.Untyped, 0, sizeof(ExitValue.Untyped)); }
 };
 
 // Interpreter - This class represents the entirety of the interpreter.
 //
 class Interpreter : public ExecutionEngine, public InstVisitor<Interpreter> {
-  GenericValue ExitValue; // The return value of the called function
   IntrinsicLowering *IL;
-
-  // The runtime stack of executing code.  The top of the stack is the current
-  // function record.
-  std::vector<ExecutionContext> ECStack;
 
   // AtExitHandlers - List of functions to call when the program exits,
   // registered with the atexit() library function.
   std::vector<Function *> AtExitHandlers;
+
+  std::vector<ExecutionPath> ExecutionPaths;
 
 public:
   explicit Interpreter(std::unique_ptr<Module> M);
@@ -126,6 +138,40 @@ public:
     // FIXME: not implemented.
     return nullptr;
   }
+
+  ExecutionContext &context() { return ExecutionPaths.back().ECStack.back(); }
+
+  GenericValue *getCurrentExitValue() {
+    return &ExecutionPaths.back().ExitValue;
+  }
+
+  void setExitValue(GenericValue Val) { ExecutionPaths.back().ExitValue = Val; }
+
+  void pushPath() { ExecutionPaths.push_back(ExecutionPath()); }
+
+  GenericValue popPath() {
+    GenericValue Ret = ExecutionPaths.back().ExitValue;
+    ExecutionPaths.pop_back();
+    return Ret;
+  }
+
+  void popContext() { ExecutionPaths.back().ECStack.pop_back(); }
+
+  std::vector<ExecutionContext> &currentStack() {
+    return ExecutionPaths.back().ECStack;
+  }
+
+  bool stackIsEmpty() { return ExecutionPaths.back().ECStack.empty(); }
+
+  size_t stackSize() { return ExecutionPaths.back().ECStack.size(); }
+
+  void clearStack() { ExecutionPaths.back().ECStack.clear(); }
+
+  void clearPaths() { ExecutionPaths.clear(); }
+
+  bool pathsAreEmpty() { return ExecutionPaths.empty(); }
+
+  // a method to get the back of the current context stack:
 
   // Methods used to execute code:
   // Place a call on the stack
@@ -193,7 +239,7 @@ public:
 
   void addAtExitHandler(Function *F) { AtExitHandlers.push_back(F); }
 
-  GenericValue *getFirstVarArg() { return &(ECStack.back().VarArgs[0]); }
+  GenericValue *getFirstVarArg() { return &(this->context().VarArgs[0]); }
 
 private: // Helper functions
   GenericValue executeGEPOperation(Value *Ptr, gep_type_iterator I,

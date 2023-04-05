@@ -22,9 +22,13 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
+
 #include <algorithm>
 #include <cmath>
+#include <iostream>
+using namespace std;
 using namespace llvm;
 
 #define DEBUG_TYPE "interpreter"
@@ -61,7 +65,7 @@ static void executeFNegInst(GenericValue &Dest, GenericValue Src, Type *Ty) {
 }
 
 void Interpreter::visitUnaryOperator(UnaryOperator &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Type *Ty = I.getOperand(0)->getType();
   GenericValue Src = getOperandValue(I.getOperand(0), SF);
   GenericValue R; // Result
@@ -334,7 +338,7 @@ static GenericValue executeICMP_SGE(GenericValue Src1, GenericValue Src2,
 }
 
 void Interpreter::visitICmpInst(ICmpInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Type *Ty = I.getOperand(0)->getType();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
@@ -683,7 +687,7 @@ static GenericValue executeFCMP_BOOL(GenericValue Src1, GenericValue Src2,
 }
 
 void Interpreter::visitFCmpInst(FCmpInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Type *Ty = I.getOperand(0)->getType();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
@@ -810,7 +814,7 @@ static GenericValue executeCmpInst(unsigned predicate, GenericValue Src1,
 }
 
 void Interpreter::visitBinaryOperator(BinaryOperator &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Type *Ty = I.getOperand(0)->getType();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
@@ -980,7 +984,7 @@ static GenericValue executeSelectInst(GenericValue Src1, GenericValue Src2,
 }
 
 void Interpreter::visitSelectInst(SelectInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Type *Ty = I.getOperand(0)->getType();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
@@ -997,7 +1001,7 @@ void Interpreter::exitCalled(GenericValue GV) {
   // runAtExitHandlers() assumes there are no stack frames, but
   // if exit() was called, then it had a stack frame. Blow away
   // the stack before interpreting atexit handlers.
-  ECStack.clear();
+  Interpreter::clearPaths();
   runAtExitHandlers();
   exit(GV.IntVal.zextOrTrunc(32).getZExtValue());
 }
@@ -1013,18 +1017,21 @@ void Interpreter::exitCalled(GenericValue GV) {
 void Interpreter::popStackAndReturnValueToCaller(Type *RetTy,
                                                  GenericValue Result) {
   // Pop the current stack frame.
-  ECStack.pop_back();
+  Interpreter::popContext();
 
-  if (ECStack.empty()) { // Finished main.  Put result into exit code...
+  if (Interpreter::stackIsEmpty()) {   // Finished main.  Put result into exit
+                                       // code...
     if (RetTy && !RetTy->isVoidTy()) { // Nonvoid return type?
-      ExitValue = Result;              // Capture the exit value of the program
+      Interpreter::setExitValue(
+          Result); // Capture the exit value of the program
     } else {
-      memset(&ExitValue.Untyped, 0, sizeof(ExitValue.Untyped));
+      GenericValue *Exit = Interpreter::getCurrentExitValue();
+      memset(Exit->Untyped, 0, sizeof(Exit->Untyped));
     }
   } else {
     // If we have a previous stack frame, and we have a previous call,
     // fill in the return value...
-    ExecutionContext &CallingSF = ECStack.back();
+    ExecutionContext &CallingSF = Interpreter::context();
     if (CallingSF.Caller) {
       // Save result...
       if (!CallingSF.Caller->getType()->isVoidTy())
@@ -1037,7 +1044,7 @@ void Interpreter::popStackAndReturnValueToCaller(Type *RetTy,
 }
 
 void Interpreter::visitReturnInst(ReturnInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Type *RetTy = Type::getVoidTy(I.getContext());
   GenericValue Result;
 
@@ -1055,7 +1062,7 @@ void Interpreter::visitUnreachableInst(UnreachableInst &I) {
 }
 
 void Interpreter::visitBranchInst(BranchInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   BasicBlock *Dest;
 
   Dest = I.getSuccessor(0); // Uncond branches have a fixed dest...
@@ -1068,7 +1075,7 @@ void Interpreter::visitBranchInst(BranchInst &I) {
 }
 
 void Interpreter::visitSwitchInst(SwitchInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Value *Cond = I.getCondition();
   Type *ElTy = Cond->getType();
   GenericValue CondVal = getOperandValue(Cond, SF);
@@ -1088,7 +1095,7 @@ void Interpreter::visitSwitchInst(SwitchInst &I) {
 }
 
 void Interpreter::visitIndirectBrInst(IndirectBrInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   void *Dest = GVTOP(getOperandValue(I.getAddress(), SF));
   SwitchToNewBasicBlock((BasicBlock *)Dest, SF);
 }
@@ -1138,7 +1145,7 @@ void Interpreter::SwitchToNewBasicBlock(BasicBlock *Dest,
 //===----------------------------------------------------------------------===//
 
 void Interpreter::visitAllocaInst(AllocaInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
 
   Type *Ty = I.getAllocatedType(); // Type to be allocated
 
@@ -1164,7 +1171,7 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
     GenericValue Result = MiriPointerTOGV(MiriPointerVal);
     SetValue(&I, Result, SF);
     if (I.getOpcode() == Instruction::Alloca)
-      ECStack.back().MiriAllocas.add(MiriPointerVal);
+      Interpreter::context().MiriAllocas.add(MiriPointerVal);
   } else {
     // Allocate enough memory to hold the type...
     void *Memory = safe_malloc(MemToAlloc);
@@ -1175,7 +1182,7 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
     assert(Result.PointerVal && "Null pointer returned by malloc!");
     SetValue(&I, Result, SF);
     if (I.getOpcode() == Instruction::Alloca)
-      ECStack.back().Allocas.add(Memory);
+      Interpreter::context().Allocas.add(Memory);
   }
 }
 
@@ -1221,7 +1228,7 @@ GenericValue Interpreter::executeGEPOperation(Value *Ptr, gep_type_iterator I,
 }
 
 void Interpreter::visitGetElementPtrInst(GetElementPtrInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I,
            executeGEPOperation(I.getPointerOperand(), gep_type_begin(I),
                                gep_type_end(I), SF),
@@ -1229,7 +1236,7 @@ void Interpreter::visitGetElementPtrInst(GetElementPtrInst &I) {
 }
 
 void Interpreter::visitLoadInst(LoadInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   GenericValue Result;
   MiriPointer MiriPointerVal = SRC.MiriPointerVal;
@@ -1238,9 +1245,7 @@ void Interpreter::visitLoadInst(LoadInst &I) {
     LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
                       << MiriPointerVal.addr << " ");
     const unsigned LoadBytes = getDataLayout().getTypeStoreSize(I.getType());
-
-    MiriPointer Tracked = GVTOMiriPointer(SRC);
-    Interpreter::ExecutionEngine::LoadFromMiriMemory(&Result, Tracked,
+    Interpreter::ExecutionEngine::LoadFromMiriMemory(&Result, MiriPointerVal,
                                                      I.getType(), LoadBytes);
   } else {
     LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
@@ -1253,7 +1258,20 @@ void Interpreter::visitLoadInst(LoadInst &I) {
 }
 
 void Interpreter::visitStoreInst(StoreInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  if (DILocation *Loc = I.getDebugLoc()) {
+    unsigned Line = Loc->getLine();
+    StringRef File = Loc->getFilename();
+    // StringRef Dir = Loc->getDirectory();
+    // bool ImplicitCode = Loc->isImplicitCode();
+    cout << "Debug location: " << File.str() << ":" << Line
+         << " ("
+         /* << ImplicitCode */
+         << ")" << endl;
+  } else {
+    cout << "No debug location" << endl;
+  }
+
+  ExecutionContext &SF = Interpreter::context();
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   MiriPointer MiriPointerVal = SRC.MiriPointerVal;
@@ -1262,11 +1280,10 @@ void Interpreter::visitStoreInst(StoreInst &I) {
                       << MiriPointerVal.alloc_id << " ");
     const unsigned StoreBytes =
         getDataLayout().getTypeStoreSize(I.getOperand(0)->getType());
-    MiriPointer Tracked = GVTOMiriPointer(SRC);
     Interpreter::ExecutionEngine::StoreToMiriMemory(
-        &Val, Tracked, I.getOperand(0)->getType(), StoreBytes);
+        &Val, MiriPointerVal, I.getOperand(0)->getType(), StoreBytes);
   } else {
-    LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
+    LLVM_DEBUG(dbgs() << "Storing value to C++ memory: ");
     StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
                        I.getOperand(0)->getType());
   }
@@ -1279,9 +1296,9 @@ void Interpreter::visitStoreInst(StoreInst &I) {
 //===----------------------------------------------------------------------===//
 
 void Interpreter::visitVAStartInst(VAStartInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   GenericValue ArgIndex;
-  ArgIndex.UIntPairVal.first = ECStack.size() - 1;
+  ArgIndex.UIntPairVal.first = Interpreter::stackSize() - 1;
   ArgIndex.UIntPairVal.second = 0;
   SetValue(&I, ArgIndex, SF);
 }
@@ -1291,12 +1308,12 @@ void Interpreter::visitVAEndInst(VAEndInst &I) {
 }
 
 void Interpreter::visitVACopyInst(VACopyInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, getOperandValue(*I.arg_begin(), SF), SF);
 }
 
 void Interpreter::visitIntrinsicInst(IntrinsicInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
 
   // If it is an unknown intrinsic function, use the intrinsic lowering
   // class to transform it into hopefully tasty LLVM code.
@@ -1319,7 +1336,7 @@ void Interpreter::visitIntrinsicInst(IntrinsicInst &I) {
 }
 
 void Interpreter::visitCallBase(CallBase &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
 
   SF.Caller = &I;
   std::vector<GenericValue> ArgVals;
@@ -1346,7 +1363,7 @@ static unsigned getShiftAmount(uint64_t orgShiftAmount,
 }
 
 void Interpreter::visitShl(BinaryOperator &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
   GenericValue Dest;
@@ -1374,7 +1391,7 @@ void Interpreter::visitShl(BinaryOperator &I) {
 }
 
 void Interpreter::visitLShr(BinaryOperator &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
   GenericValue Dest;
@@ -1402,7 +1419,7 @@ void Interpreter::visitLShr(BinaryOperator &I) {
 }
 
 void Interpreter::visitAShr(BinaryOperator &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
   GenericValue Dest;
@@ -1865,62 +1882,62 @@ GenericValue Interpreter::executeBitCastInst(Value *SrcVal, Type *DstTy,
 }
 
 void Interpreter::visitTruncInst(TruncInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeTruncInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitSExtInst(SExtInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeSExtInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitZExtInst(ZExtInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeZExtInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitFPTruncInst(FPTruncInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeFPTruncInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitFPExtInst(FPExtInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeFPExtInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitUIToFPInst(UIToFPInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeUIToFPInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitSIToFPInst(SIToFPInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeSIToFPInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitFPToUIInst(FPToUIInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeFPToUIInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitFPToSIInst(FPToSIInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeFPToSIInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitPtrToIntInst(PtrToIntInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executePtrToIntInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitIntToPtrInst(IntToPtrInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeIntToPtrInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
 void Interpreter::visitBitCastInst(BitCastInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   SetValue(&I, executeBitCastInst(I.getOperand(0), I.getType(), SF), SF);
 }
 
@@ -1930,14 +1947,15 @@ void Interpreter::visitBitCastInst(BitCastInst &I) {
     break
 
 void Interpreter::visitVAArgInst(VAArgInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
 
   // Get the incoming valist parameter.  LLI treats the valist as a
   // (ec-stack-depth var-arg-index) pair.
   GenericValue VAList = getOperandValue(I.getOperand(0), SF);
   GenericValue Dest;
-  GenericValue Src =
-      ECStack[VAList.UIntPairVal.first].VarArgs[VAList.UIntPairVal.second];
+
+  GenericValue Src = Interpreter::currentStack()[VAList.UIntPairVal.first]
+                         .VarArgs[VAList.UIntPairVal.second];
   Type *Ty = I.getType();
   switch (Ty->getTypeID()) {
   case Type::IntegerTyID:
@@ -1959,7 +1977,7 @@ void Interpreter::visitVAArgInst(VAArgInst &I) {
 }
 
 void Interpreter::visitExtractElementInst(ExtractElementInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
   GenericValue Src2 = getOperandValue(I.getOperand(1), SF);
   GenericValue Dest;
@@ -1992,7 +2010,7 @@ void Interpreter::visitExtractElementInst(ExtractElementInst &I) {
 }
 
 void Interpreter::visitInsertElementInst(InsertElementInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   VectorType *Ty = cast<VectorType>(I.getType());
 
   GenericValue Src1 = getOperandValue(I.getOperand(0), SF);
@@ -2024,7 +2042,7 @@ void Interpreter::visitInsertElementInst(InsertElementInst &I) {
 }
 
 void Interpreter::visitShuffleVectorInst(ShuffleVectorInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
 
   VectorType *Ty = cast<VectorType>(I.getType());
 
@@ -2092,7 +2110,7 @@ void Interpreter::visitShuffleVectorInst(ShuffleVectorInst &I) {
 }
 
 void Interpreter::visitExtractValueInst(ExtractValueInst &I) {
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Value *Agg = I.getAggregateOperand();
   GenericValue Dest;
   GenericValue Src = getOperandValue(Agg, SF);
@@ -2137,7 +2155,7 @@ void Interpreter::visitExtractValueInst(ExtractValueInst &I) {
 
 void Interpreter::visitInsertValueInst(InsertValueInst &I) {
 
-  ExecutionContext &SF = ECStack.back();
+  ExecutionContext &SF = Interpreter::context();
   Value *Agg = I.getAggregateOperand();
 
   GenericValue Src1 = getOperandValue(Agg, SF);
@@ -2316,14 +2334,15 @@ GenericValue Interpreter::getOperandValue(Value *V, ExecutionContext &SF) {
 // callFunction - Execute the specified function...
 //
 void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
-  assert((ECStack.empty() || !ECStack.back().Caller ||
-          ECStack.back().Caller->arg_size() == ArgVals.size()) &&
+  assert((!Interpreter::pathsAreEmpty() && "No path to execute!"));
+  assert((Interpreter::stackIsEmpty() || !Interpreter::context().Caller ||
+          Interpreter::context().Caller->arg_size() == ArgVals.size()) &&
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
 
-  ECStack.emplace_back(Interpreter::ExecutionEngine::MiriWrapper,
+  Interpreter::currentStack().emplace_back(Interpreter::ExecutionEngine::MiriWrapper,
                        Interpreter::ExecutionEngine::MiriFree);
-  ExecutionContext &StackFrame = ECStack.back();
+  ExecutionContext &StackFrame = Interpreter::context();
   StackFrame.CurFunction = F;
 
   // Special handling for external functions.
@@ -2355,10 +2374,10 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
 }
 
 void Interpreter::run() {
-  while (!ECStack.empty()) {
+  while (!Interpreter::stackIsEmpty()) {
     // Interpret a single instruction & increment the "PC".
-    ExecutionContext &SF = ECStack.back(); // Current stack frame
-    Instruction &I = *SF.CurInst++;        // Increment before execute
+    ExecutionContext &SF = Interpreter::context(); // Current stack frame
+    Instruction &I = *SF.CurInst++;                // Increment before execute
 
     // Track the number of dynamic instructions executed.
     ++NumDynamicInsts;

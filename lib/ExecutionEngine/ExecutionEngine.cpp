@@ -1110,7 +1110,7 @@ void ExecutionEngine::StoreToMiriMemory(GenericValue *Source,
                                         MiriPointer Dest, Type *SourceTy, const unsigned StoreBytes) {
   LLVMGenericValueRef SourceRef = wrap(Source);
   LLVMTypeRef SourceTyRef = wrap(SourceTy);
-  ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, SourceRef, Dest,
+  ExecutionEngine::MiriStore(ExecutionEngine::MiriWrapper, SourceRef, Dest,
                             SourceTyRef, StoreBytes);
 }
 GenericValue *

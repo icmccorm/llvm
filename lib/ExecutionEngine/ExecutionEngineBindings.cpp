@@ -102,6 +102,11 @@ double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal) {
   }
 }
 
+void LLVMGenericValueSetMiriPointerValue(LLVMGenericValueRef GenVal,
+                                    MiriPointer PointerMetaVal) {
+  unwrap(GenVal)->MiriPointerVal = PointerMetaVal;
+}
+
 void LLVMGenericValueSetDoubleValue(LLVMGenericValueRef GenVal,
                                     double DoubleVal) {
   unwrap(GenVal)->DoubleVal = DoubleVal;
@@ -111,11 +116,10 @@ void LLVMGenericValueSetFloatValue(LLVMGenericValueRef GenVal, float FloatVal) {
 
   unwrap(GenVal)->FloatVal = FloatVal;
 }
-
-void LLVMGenericValueSetIntValue(LLVMGenericValueRef GenVal, uint8_t *Src,
+void LLVMGenericValueSetIntValue(LLVMGenericValueRef GenVal, uint64_t val,
                                  unsigned LoadBytes) {
-  unwrap(GenVal)->IntVal = APInt(LoadBytes, 0);
-  LoadIntFromMemory(unwrap(GenVal)->IntVal, Src, LoadBytes);
+  GenericValue *GenValInner = unwrap(GenVal);
+  GenValInner->IntVal = APInt(LoadBytes * 8, val);
 }
 
 void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal) {

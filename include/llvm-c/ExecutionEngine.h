@@ -75,8 +75,11 @@ void LLVMGenericValueSetDoubleValue(LLVMGenericValueRef GenVal,
 
 void LLVMGenericValueSetFloatValue(LLVMGenericValueRef GenVal, float FloatVal);
 
-void LLVMGenericValueSetIntValue(LLVMGenericValueRef GenVal, uint8_t *Src,
+void LLVMGenericValueSetIntValue(LLVMGenericValueRef GenVal, uint64_t val,
                                  unsigned LoadBytes);
+
+void LLVMGenericValueSetMiriPointerValue(LLVMGenericValueRef GenVal,
+                                    MiriPointer Ptr);
 
 void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal);
 
