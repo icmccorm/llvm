@@ -52,6 +52,7 @@ LLVMGenericValueRef
 LLVMCreateGenericValueOfMiriPointer(MiriPointer PointerMetaVal) {
   GenericValue *GenVal = new GenericValue();
   GenVal->MiriPointerVal = PointerMetaVal;
+  GenVal->PointerVal = PointerTy(intptr_t(PointerMetaVal.addr));
   return wrap(GenVal);
 }
 
@@ -118,6 +119,7 @@ void LLVMGenericValueSetMiriParentPointerValue(LLVMGenericValueRef GenVal,
 void LLVMGenericValueSetMiriPointerValue(LLVMGenericValueRef GenVal,
                                          MiriPointer PointerMetaVal) {
   unwrap(GenVal)->MiriPointerVal = PointerMetaVal;
+  unwrap(GenVal)->PointerVal = (void *)PointerMetaVal.addr;
 }
 
 void LLVMGenericValueSetDoubleValue(LLVMGenericValueRef GenVal,

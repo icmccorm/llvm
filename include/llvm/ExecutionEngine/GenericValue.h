@@ -47,7 +47,7 @@ struct GenericValue {
     UIntPairVal.second = 0;
   }
   explicit GenericValue(MiriPointer Meta)
-      : PointerVal(nullptr), IntVal(1, 0), MiriPointerVal(Meta) {}
+      : PointerVal((void *)(intptr_t)Meta.addr), IntVal(1, 0), MiriPointerVal(Meta) {}
   explicit GenericValue(void *V)
       : PointerVal(V), IntVal(1, 0),
         MiriPointerVal({.addr = 0, .alloc_id = 0, .tag = 0, .offset = 0}),

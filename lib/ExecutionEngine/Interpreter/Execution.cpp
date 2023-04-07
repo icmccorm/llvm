@@ -200,6 +200,7 @@ static void executeFRemInst(GenericValue &Dest, GenericValue Src1,
 static GenericValue executeICMP_EQ(GenericValue Src1, GenericValue Src2,
                                    Type *Ty) {
   GenericValue Dest;
+  //print the contents of PointerVal for each Src1 and Src2, as well as the result of == for both to cout
   switch (Ty->getTypeID()) {
     IMPLEMENT_INTEGER_ICMP(eq, Ty);
     IMPLEMENT_VECTOR_INTEGER_ICMP(eq, Ty);
