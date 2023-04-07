@@ -55,6 +55,15 @@ LLVMCreateGenericValueOfMiriPointer(MiriPointer PointerMetaVal) {
   return wrap(GenVal);
 }
 
+LLVMGenericValueRef
+LLVMGetPointerToAggregateGenericValue(LLVMGenericValueRef GenValRef) {
+  return wrap(unwrap(GenValRef)->AggregateVal.data());
+}
+
+size_t LLVMGetAggregateGenericValueLength(LLVMGenericValueRef GenValRef) {
+  return unwrap(GenValRef)->AggregateVal.size();
+}
+
 MiriPointer LLVMGenericValueToMiriPointer(LLVMGenericValueRef GenValRef) {
   return unwrap(GenValRef)->MiriPointerVal;
 }
@@ -101,9 +110,13 @@ double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal) {
     llvm_unreachable("LLVMGenericValueToFloat supports only float and double.");
   }
 }
+void LLVMGenericValueSetMiriParentPointerValue(LLVMGenericValueRef GenVal,
+                                               MiriPointer PointerMetaVal) {
+  unwrap(GenVal)->MiriParentPointerVal = PointerMetaVal;
+}
 
 void LLVMGenericValueSetMiriPointerValue(LLVMGenericValueRef GenVal,
-                                    MiriPointer PointerMetaVal) {
+                                         MiriPointer PointerMetaVal) {
   unwrap(GenVal)->MiriPointerVal = PointerMetaVal;
 }
 
@@ -349,6 +362,15 @@ void LLVMExecutionEngineSetMiriCallbackHook(
   assert(IncomingCallbackHook && "IncomingCallbackHook must be non-null");
   auto *ExecEngine = unwrap(EE);
   ExecEngine->setMiriCallback(IncomingCallbackHook);
+}
+
+void LLVMExecutionEngineSetMiriStackTraceRecorderHook(
+    LLVMExecutionEngineRef EE,
+    MiriStackTraceRecorderHook IncomingStackTraceRecorderHook) {
+  assert(IncomingStackTraceRecorderHook &&
+         "IncomingStackTraceRecorderHook must be non-null");
+  auto *ExecEngine = unwrap(EE);
+  ExecEngine->setMiriStackTraceRecorder(IncomingStackTraceRecorderHook);
 }
 
 void LLVMExecutionEngineSetMiriInterpCxWrapper(LLVMExecutionEngineRef EE,

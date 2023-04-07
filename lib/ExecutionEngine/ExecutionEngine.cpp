@@ -1099,33 +1099,23 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
     std::reverse((uint8_t *)Ptr, StoreBytes + (uint8_t *)Ptr);
 }
 
-void ExecutionEngine::LoadFromMiriMemory(GenericValue *Dest,
-                                         MiriPointer Source, Type *DestTy, const unsigned LoadBytes) {
+bool ExecutionEngine::LoadFromMiriMemory(GenericValue *Dest, MiriPointer Source,
+                                         Type *DestTy,
+                                         const unsigned LoadBytes) {
   LLVMGenericValueRef DestRef = wrap(Dest);
   LLVMTypeRef DestTyRef = wrap(DestTy);
-  ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, DestRef, Source,
-                            DestTyRef, LoadBytes);
+  return ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, DestRef,
+                                   Source, DestTyRef, LoadBytes);
 }
-void ExecutionEngine::StoreToMiriMemory(GenericValue *Source,
-                                        MiriPointer Dest, Type *SourceTy, const unsigned StoreBytes) {
+bool ExecutionEngine::StoreToMiriMemory(GenericValue *Source, MiriPointer Dest,
+                                        Type *SourceTy,
+                                        const unsigned StoreBytes) {
   LLVMGenericValueRef SourceRef = wrap(Source);
   LLVMTypeRef SourceTyRef = wrap(SourceTy);
-  ExecutionEngine::MiriStore(ExecutionEngine::MiriWrapper, SourceRef, Dest,
-                            SourceTyRef, StoreBytes);
+  return ExecutionEngine::MiriStore(ExecutionEngine::MiriWrapper, SourceRef,
+                                    Dest, SourceTyRef, StoreBytes);
 }
-GenericValue *
-ExecutionEngine::CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
-  StringRef Name = F->getName();
-  const char *NamePtr = Name.data();
-  size_t NameLength = Name.size();
-  size_t NumArgs = ArgVals.size();
-  const GenericValue *Args = ArgVals.data();
-  LLVMGenericValueRef ArgsRef = wrap(Args);
-  LLVMGenericValueRef ResultRef = ExecutionEngine::MiriCallback(
-      ExecutionEngine::MiriWrapper, ArgsRef, NumArgs, NamePtr, NameLength);
-  GenericValue *Result = unwrap(ResultRef);
-  return Result;
-}
+
 /// FIXME: document
 ///
 void ExecutionEngine::LoadValueFromMemory(GenericValue &Result,

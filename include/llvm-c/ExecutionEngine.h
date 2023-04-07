@@ -79,7 +79,13 @@ void LLVMGenericValueSetIntValue(LLVMGenericValueRef GenVal, uint64_t val,
                                  unsigned LoadBytes);
 
 void LLVMGenericValueSetMiriPointerValue(LLVMGenericValueRef GenVal,
-                                    MiriPointer Ptr);
+                                         MiriPointer Ptr);
+void LLVMGenericValueSetMiriParentPointerValue(LLVMGenericValueRef GenVal,
+                                               MiriPointer PointerMetaVal);
+LLVMGenericValueRef
+LLVMGetPointerToAggregateGenericValue(LLVMGenericValueRef GenValRef);
+
+size_t LLVMGetAggregateGenericValueLength(LLVMGenericValueRef GenValRef);
 
 void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal);
 
@@ -184,6 +190,10 @@ void LLVMExecutionEngineSetMiriMalloc(LLVMExecutionEngineRef EE,
 
 void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE,
                                     MiriFreeHook IncomingFreeHook);
+
+void LLVMExecutionEngineSetMiriStackTraceRecorderHook(
+    LLVMExecutionEngineRef EE,
+    MiriStackTraceRecorderHook IncomingStackTraceRecorderHook);
 
 /*===-- Operations on memory managers -------------------------------------===*/
 

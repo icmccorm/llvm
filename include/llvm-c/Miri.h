@@ -13,10 +13,10 @@
 
 #ifndef LLVM_C_MIRI_H
 #define LLVM_C_MIRI_H
-#include <stddef.h>
+#include "llvm-c/ExecutionEngine.h"
 #include "llvm-c/ExternC.h"
 #include "llvm-c/Types.h"
-#include "llvm-c/ExecutionEngine.h"
+#include <stddef.h>
 
 LLVM_C_EXTERN_C_BEGIN
 
@@ -29,11 +29,24 @@ typedef struct MiriPointer {
   unsigned long long int offset;
 } MiriPointer;
 
+typedef struct MiriErrorTrace {
+  const char *directory;
+  size_t directory_len;
+  const char *file;
+  size_t file_len;
+  unsigned line;
+  unsigned column;
+} MiriErrorTrace;
+
 typedef MiriPointer (*MiriAllocationHook)(void *, size_t);
-typedef void (*MiriFreeHook)(void *, MiriPointer);              
-typedef void (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer, LLVMTypeRef, const unsigned);
-typedef LLVMGenericValueRef (*MiriCallbackHook)(void *, LLVMGenericValueRef, size_t, const char *, size_t);
-
+typedef LLVMBool (*MiriFreeHook)(void *, MiriPointer);
+typedef LLVMBool (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer,
+                                      LLVMTypeRef, const unsigned);
+typedef void (*MiriStackTraceRecorderHook)(void *, MiriErrorTrace *const,
+                                           size_t);
+typedef LLVMGenericValueRef (*MiriCallbackHook)(void *, LLVMGenericValueRef,
+                                                LLVMGenericValueRef, size_t,
+                                                const char *, size_t,
+                                                LLVMTypeRef);
 LLVM_C_EXTERN_C_END
-
 #endif // LLVM_C_MIRI_H

@@ -112,6 +112,13 @@ class Interpreter : public ExecutionEngine, public InstVisitor<Interpreter> {
 
   std::vector<ExecutionPath> ExecutionPaths;
 
+  bool MiriErrorStatus = false;
+  unsigned ErrorColumn;
+  unsigned ErrorLine;
+  StringRef ErrorFile;
+  StringRef ErrorDir;
+  std::vector<MiriErrorTrace> StackTrace;
+
 public:
   explicit Interpreter(std::unique_ptr<Module> M);
   ~Interpreter() override;
@@ -140,6 +147,7 @@ public:
   }
 
   ExecutionContext &context() { return ExecutionPaths.back().ECStack.back(); }
+  ExecutionPath &path() { return ExecutionPaths.back(); }
 
   GenericValue *getCurrentExitValue() {
     return &ExecutionPaths.back().ExitValue;
@@ -149,10 +157,48 @@ public:
 
   void pushPath() { ExecutionPaths.push_back(ExecutionPath()); }
 
+  bool miriErrorOccurred() { return MiriErrorStatus; }
+
+  void registerMiriError() {
+    ExecutionPath &CurrentPath = ExecutionPaths.back();
+    for (ExecutionContext &CurrContext : CurrentPath.ECStack) {
+      if (CurrContext.Caller) {
+        DILocation *Loc = CurrContext.Caller->getDebugLoc();
+        if (Loc) {
+          ErrorColumn = Loc->getColumn();
+          ErrorLine = Loc->getLine();
+          ErrorFile = Loc->getFilename();
+          ErrorDir = Loc->getDirectory();
+          StackTrace.push_back(MiriErrorTrace{.directory = ErrorDir.data(),
+                                              .directory_len = ErrorDir.size(),
+                                              .file = ErrorFile.data(),
+                                              .file_len = ErrorFile.size(),
+                                              .line = ErrorLine,
+                                              .column = ErrorColumn});
+        }
+      }
+    }
+    if (this->MiriStackTraceRecorder != nullptr &&
+        this->MiriWrapper != nullptr) {
+      this->MiriStackTraceRecorder(this->MiriWrapper, StackTrace.data(),
+                                   StackTrace.size());
+    }
+    MiriErrorStatus = true;
+  }
+
+  MiriErrorTrace getMiriErrorTrace() {
+    return MiriErrorTrace{.directory = ErrorDir.data(),
+                          .directory_len = ErrorDir.size(),
+                          .file = ErrorFile.data(),
+                          .file_len = ErrorFile.size(),
+                          .line = ErrorLine,
+                          .column = ErrorColumn};
+  }
+
   GenericValue popPath() {
-    GenericValue Ret = ExecutionPaths.back().ExitValue;
+    GenericValue Res = ExecutionPaths.back().ExitValue;
     ExecutionPaths.pop_back();
-    return Ret;
+    return Res;
   }
 
   void popContext() { ExecutionPaths.back().ECStack.pop_back(); }
@@ -235,6 +281,9 @@ public:
 
   GenericValue callExternalFunction(Function *F,
                                     ArrayRef<GenericValue> ArgVals);
+
+  GenericValue CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals);
+
   void exitCalled(GenericValue GV);
 
   void addAtExitHandler(Function *F) { AtExitHandlers.push_back(F); }

@@ -1245,8 +1245,12 @@ void Interpreter::visitLoadInst(LoadInst &I) {
     LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
                       << MiriPointerVal.addr << " ");
     const unsigned LoadBytes = getDataLayout().getTypeStoreSize(I.getType());
-    Interpreter::ExecutionEngine::LoadFromMiriMemory(&Result, MiriPointerVal,
-                                                     I.getType(), LoadBytes);
+    bool status = Interpreter::ExecutionEngine::LoadFromMiriMemory(
+        &Result, MiriPointerVal, I.getType(), LoadBytes);
+    if (status) {
+      Interpreter::registerMiriError();
+    }
+    Result.MiriParentPointerVal = MiriPointerVal;
   } else {
     LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
     GenericValue *Ptr = (GenericValue *)GVTOP(SRC);
@@ -1258,19 +1262,6 @@ void Interpreter::visitLoadInst(LoadInst &I) {
 }
 
 void Interpreter::visitStoreInst(StoreInst &I) {
-  if (DILocation *Loc = I.getDebugLoc()) {
-    unsigned Line = Loc->getLine();
-    StringRef File = Loc->getFilename();
-    // StringRef Dir = Loc->getDirectory();
-    // bool ImplicitCode = Loc->isImplicitCode();
-    cout << "Debug location: " << File.str() << ":" << Line
-         << " ("
-         /* << ImplicitCode */
-         << ")" << endl;
-  } else {
-    cout << "No debug location" << endl;
-  }
-
   ExecutionContext &SF = Interpreter::context();
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
@@ -1280,8 +1271,11 @@ void Interpreter::visitStoreInst(StoreInst &I) {
                       << MiriPointerVal.alloc_id << " ");
     const unsigned StoreBytes =
         getDataLayout().getTypeStoreSize(I.getOperand(0)->getType());
-    Interpreter::ExecutionEngine::StoreToMiriMemory(
+    bool status = Interpreter::ExecutionEngine::StoreToMiriMemory(
         &Val, MiriPointerVal, I.getOperand(0)->getType(), StoreBytes);
+    if (status) {
+      Interpreter::registerMiriError();
+    }
   } else {
     LLVM_DEBUG(dbgs() << "Storing value to C++ memory: ");
     StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
@@ -2340,8 +2334,9 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
 
-  Interpreter::currentStack().emplace_back(Interpreter::ExecutionEngine::MiriWrapper,
-                       Interpreter::ExecutionEngine::MiriFree);
+  Interpreter::currentStack().emplace_back(
+      Interpreter::ExecutionEngine::MiriWrapper,
+      Interpreter::ExecutionEngine::MiriFree);
   ExecutionContext &StackFrame = Interpreter::context();
   StackFrame.CurFunction = F;
 
@@ -2384,5 +2379,8 @@ void Interpreter::run() {
 
     LLVM_DEBUG(dbgs() << "About to interpret: " << I << "\n");
     visit(I); // Dispatch to one of the visit* methods...
+    if (Interpreter::miriErrorOccurred()) {
+      return;
+    }
   }
 }

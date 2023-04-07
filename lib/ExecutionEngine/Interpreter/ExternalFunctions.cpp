@@ -294,10 +294,30 @@ static bool ffiInvoke(RawFunc Fn, Function *F, ArrayRef<GenericValue> ArgVals,
 }
 #endif // USE_LIBFFI
 
+GenericValue Interpreter::CallMiriFunction(Function *F,
+                                           ArrayRef<GenericValue> ArgVals) {
+  StringRef Name = F->getName();
+  const char *NamePtr = Name.data();
+  size_t NameLength = Name.size();
+  size_t NumArgs = ArgVals.size();
+  const GenericValue *Args = ArgVals.data();
+  FunctionType *FType = F->getFunctionType();
+  LLVMTypeRef FTypeRef = wrap(FType);
+  LLVMGenericValueRef ArgsRef = wrap(Args);
+  GenericValue Result = GenericValue();
+  LLVMGenericValueRef ResultRef = wrap(&Result);
+  bool status = Interpreter::MiriCallback(ExecutionEngine::MiriWrapper,
+                                          ResultRef, ArgsRef, NumArgs, NamePtr,
+                                          NameLength, FTypeRef);
+  if (status) {
+      Interpreter::registerMiriError();
+  }
+  return Result;
+}
+
 GenericValue Interpreter::callExternalFunction(Function *F,
                                                ArrayRef<GenericValue> ArgVals) {
   TheInterpreter = this;
-
   std::unique_lock<sys::Mutex> Guard(*FunctionsLock);
 
   // Do a lookup to see if the function is in our cache... this should just be a
@@ -334,7 +354,7 @@ GenericValue Interpreter::callExternalFunction(Function *F,
     errs() << "Tried to execute an unknown external function: " << *F->getType()
            << " __main\n";
   } else {
-    Interpreter::ExecutionEngine::CallMiriFunction(F, ArgVals);
+    return Interpreter::CallMiriFunction(F, ArgVals);
   }
 
 #ifndef USE_LIBFFI
@@ -557,7 +577,6 @@ void Interpreter::initializeExternalFunctions() {
   (*FuncNames)["lle_X_atexit"] = lle_X_atexit;
   (*FuncNames)["lle_X_exit"] = lle_X_exit;
   (*FuncNames)["lle_X_abort"] = lle_X_abort;
-
   (*FuncNames)["lle_X_printf"] = lle_X_printf;
   (*FuncNames)["lle_X_sprintf"] = lle_X_sprintf;
   (*FuncNames)["lle_X_sscanf"] = lle_X_sscanf;

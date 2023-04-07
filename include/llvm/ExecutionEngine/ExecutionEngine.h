@@ -161,7 +161,7 @@ protected:
   MiriCallbackHook MiriCallback = nullptr;
   MiriLoadStoreHook MiriLoad = nullptr;
   MiriLoadStoreHook MiriStore = nullptr;
-
+  MiriStackTraceRecorderHook MiriStackTraceRecorder = nullptr;
 public:
   /// lock - This lock protects the ExecutionEngine and MCJIT classes. It must
   /// be held while changing the internal state of any of those classes.
@@ -499,18 +499,20 @@ public:
   /// setMiriHooks - Register listener functions for memory accesses
   /// from Miri.
 
-  void LoadFromMiriMemory(GenericValue *Dest,
-                                           MiriPointer Source, Type *DestTy, const unsigned LoadBytes);
+  bool LoadFromMiriMemory(GenericValue *Dest, MiriPointer Source, Type *DestTy,
+                          const unsigned LoadBytes);
 
-  void StoreToMiriMemory(GenericValue *Source,
-                                          MiriPointer Dest, Type *SourceTy, const unsigned StoreBytes);
-
-  GenericValue *CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals);
+  bool StoreToMiriMemory(GenericValue *Source, MiriPointer Dest, Type *SourceTy,
+                         const unsigned StoreBytes);
 
   void setMiriInterpCxWrapper(void *Wrapper) { MiriWrapper = Wrapper; }
 
   void setMiriCallback(MiriCallbackHook IncomingCallback) {
     MiriCallback = IncomingCallback;
+  }
+
+  void setMiriStackTraceRecorder(MiriStackTraceRecorderHook IncomingRecorder) {
+    MiriStackTraceRecorder = IncomingRecorder;
   }
 
   void setMiriLoadHook(MiriLoadStoreHook IncomingLoadHook) {
@@ -525,9 +527,7 @@ public:
     MiriMalloc = IncomingMalloc;
   }
 
-  void setMiriFree(MiriFreeHook IncomingFree) {
-    MiriFree = IncomingFree;
-  }
+  void setMiriFree(MiriFreeHook IncomingFree) { MiriFree = IncomingFree; }
 
 protected:
   ExecutionEngine(DataLayout DL) : DL(std::move(DL)) {}
