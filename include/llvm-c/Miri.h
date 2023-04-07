@@ -34,8 +34,8 @@ typedef struct MiriErrorTrace {
   size_t directory_len;
   const char *file;
   size_t file_len;
-  unsigned line;
-  unsigned column;
+  unsigned int line;
+  unsigned int column;
 } MiriErrorTrace;
 
 typedef MiriPointer (*MiriAllocationHook)(void *, size_t);

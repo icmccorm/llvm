@@ -113,10 +113,6 @@ class Interpreter : public ExecutionEngine, public InstVisitor<Interpreter> {
   std::vector<ExecutionPath> ExecutionPaths;
 
   bool MiriErrorStatus = false;
-  unsigned ErrorColumn;
-  unsigned ErrorLine;
-  StringRef ErrorFile;
-  StringRef ErrorDir;
   std::vector<MiriErrorTrace> StackTrace;
 
 public:
@@ -159,40 +155,43 @@ public:
 
   bool miriErrorOccurred() { return MiriErrorStatus; }
 
-  void registerMiriError() {
+  void registerMiriErrorWithoutLocation() {
+    MiriErrorStatus = true;
     ExecutionPath &CurrentPath = ExecutionPaths.back();
     for (ExecutionContext &CurrContext : CurrentPath.ECStack) {
       if (CurrContext.Caller) {
         DILocation *Loc = CurrContext.Caller->getDebugLoc();
         if (Loc) {
-          ErrorColumn = Loc->getColumn();
-          ErrorLine = Loc->getLine();
-          ErrorFile = Loc->getFilename();
-          ErrorDir = Loc->getDirectory();
+          StringRef ErrorFile = Loc->getFilename();
+          StringRef ErrorDir = Loc->getDirectory();
           StackTrace.push_back(MiriErrorTrace{.directory = ErrorDir.data(),
                                               .directory_len = ErrorDir.size(),
                                               .file = ErrorFile.data(),
                                               .file_len = ErrorFile.size(),
-                                              .line = ErrorLine,
-                                              .column = ErrorColumn});
+                                              .line = Loc->getLine(),
+                                              .column = Loc->getColumn()});
         }
       }
+      if (this->MiriStackTraceRecorder != nullptr &&
+          this->MiriWrapper != nullptr) {
+        this->MiriStackTraceRecorder(this->MiriWrapper, StackTrace.data(),
+                                     StackTrace.size());
+      }
     }
-    if (this->MiriStackTraceRecorder != nullptr &&
-        this->MiriWrapper != nullptr) {
-      this->MiriStackTraceRecorder(this->MiriWrapper, StackTrace.data(),
-                                   StackTrace.size());
-    }
-    MiriErrorStatus = true;
   }
-
-  MiriErrorTrace getMiriErrorTrace() {
-    return MiriErrorTrace{.directory = ErrorDir.data(),
-                          .directory_len = ErrorDir.size(),
-                          .file = ErrorFile.data(),
-                          .file_len = ErrorFile.size(),
-                          .line = ErrorLine,
-                          .column = ErrorColumn};
+  void registerMiriError(Instruction &I) {
+    DILocation *Loc = I.getDebugLoc();
+    if (Loc) {
+      StringRef ErrorFile = Loc->getFilename();
+      StringRef ErrorDir = Loc->getDirectory();
+      StackTrace.push_back(MiriErrorTrace{.directory = ErrorDir.data(),
+                                          .directory_len = ErrorDir.size(),
+                                          .file = ErrorFile.data(),
+                                          .file_len = ErrorFile.size(),
+                                          .line = Loc->getLine(),
+                                          .column = Loc->getColumn()});
+    }
+    registerMiriErrorWithoutLocation();
   }
 
   GenericValue popPath() {

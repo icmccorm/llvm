@@ -310,7 +310,7 @@ GenericValue Interpreter::CallMiriFunction(Function *F,
                                           ResultRef, ArgsRef, NumArgs, NamePtr,
                                           NameLength, FTypeRef);
   if (status) {
-      Interpreter::registerMiriError();
+    Interpreter::registerMiriErrorWithoutLocation();
   }
   return Result;
 }

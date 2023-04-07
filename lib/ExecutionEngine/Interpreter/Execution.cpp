@@ -1248,7 +1248,7 @@ void Interpreter::visitLoadInst(LoadInst &I) {
     bool status = Interpreter::ExecutionEngine::LoadFromMiriMemory(
         &Result, MiriPointerVal, I.getType(), LoadBytes);
     if (status) {
-      Interpreter::registerMiriError();
+      Interpreter::registerMiriError(I);
     }
     Result.MiriParentPointerVal = MiriPointerVal;
   } else {
@@ -1274,7 +1274,7 @@ void Interpreter::visitStoreInst(StoreInst &I) {
     bool status = Interpreter::ExecutionEngine::StoreToMiriMemory(
         &Val, MiriPointerVal, I.getOperand(0)->getType(), StoreBytes);
     if (status) {
-      Interpreter::registerMiriError();
+      Interpreter::registerMiriError(I);
     }
   } else {
     LLVM_DEBUG(dbgs() << "Storing value to C++ memory: ");
@@ -2333,7 +2333,7 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
           Interpreter::context().Caller->arg_size() == ArgVals.size()) &&
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
-
+  
   Interpreter::currentStack().emplace_back(
       Interpreter::ExecutionEngine::MiriWrapper,
       Interpreter::ExecutionEngine::MiriFree);
