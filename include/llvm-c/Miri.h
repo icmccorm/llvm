@@ -22,13 +22,17 @@ LLVM_C_EXTERN_C_BEGIN
 
 typedef struct LLVMOpaqueGenericValue *LLVMGenericValueRef;
 
-typedef struct MiriPointer {
-  unsigned long long int addr;
+typedef struct MiriProvenance {
   unsigned long long int alloc_id;
   unsigned long long int tag;
-  unsigned long long int offset;
+} MiriProvenance;
+
+typedef struct MiriPointer {
+  unsigned long long int addr;
+  MiriProvenance prov;
 } MiriPointer;
 
+const MiriProvenance NULL_PROVENANCE = {0, 0};
 typedef struct MiriErrorTrace {
   const char *directory;
   size_t directory_len;
@@ -38,15 +42,15 @@ typedef struct MiriErrorTrace {
   unsigned int column;
 } MiriErrorTrace;
 
-typedef MiriPointer (*MiriAllocationHook)(void *, size_t);
+typedef MiriPointer (*MiriAllocationHook)(void *, uint64_t, uint64_t);
 typedef LLVMBool (*MiriFreeHook)(void *, MiriPointer);
 typedef LLVMBool (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer,
-                                      LLVMTypeRef, const unsigned);
+                                      LLVMTypeRef, uint64_t, uint64_t);
 typedef void (*MiriStackTraceRecorderHook)(void *, MiriErrorTrace *const,
-                                           size_t);
+                                           uint64_t);
 typedef LLVMGenericValueRef (*MiriCallbackHook)(void *, LLVMGenericValueRef,
-                                                LLVMGenericValueRef, size_t,
-                                                const char *, size_t,
+                                                LLVMGenericValueRef, uint64_t,
+                                                const char *, uint64_t,
                                                 LLVMTypeRef);
 LLVM_C_EXTERN_C_END
 #endif // LLVM_C_MIRI_H

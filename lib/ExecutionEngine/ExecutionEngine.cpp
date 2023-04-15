@@ -119,7 +119,18 @@ public:
 } // anonymous namespace
 
 char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
-  return GVMemoryBlock::Create(GV, getDataLayout());
+  if (ExecutionEngine::MiriWrapper != nullptr) {
+    const DataLayout &TD = getDataLayout();
+    Type *ElTy = GV->getValueType();
+    uint64_t GVSize = (size_t)TD.getTypeAllocSize(ElTy);
+    uint64_t Alignment = TD.getABITypeAlignment(ElTy);
+    MiriPointer RawMemory =
+        ExecutionEngine::MiriMalloc(MiriWrapper, GVSize, Alignment);
+    ExecutionEngine::addMiriProvenanceEntry(RawMemory);
+    return (char *)RawMemory.addr;
+  } else {
+    return GVMemoryBlock::Create(GV, getDataLayout());
+  }
 }
 
 void ExecutionEngine::addObjectFile(std::unique_ptr<object::ObjectFile> O) {
@@ -203,6 +214,12 @@ void ExecutionEngine::addGlobalMapping(const GlobalValue *GV, void *Addr) {
   addGlobalMapping(getMangledName(GV), (uint64_t)Addr);
 }
 
+void ExecutionEngine::addMiriProvenanceEntry(const MiriPointer &Pointer) {
+  std::lock_guard<sys::Mutex> locked(lock);
+  MiriProvenance &CurVal = EEState.getMiriProvenanceMap()[Pointer.addr];
+  CurVal = Pointer.prov;
+}
+
 void ExecutionEngine::addGlobalMapping(StringRef Name, uint64_t Addr) {
   std::lock_guard<sys::Mutex> locked(lock);
 
@@ -224,16 +241,31 @@ void ExecutionEngine::addGlobalMapping(StringRef Name, uint64_t Addr) {
 
 void ExecutionEngine::clearAllGlobalMappings() {
   std::lock_guard<sys::Mutex> locked(lock);
-
+  if (ExecutionEngine::MiriWrapper != nullptr) {
+    for (auto const &x : EEState.getMiriProvenanceMap()) {
+      ExecutionEngine::MiriFree(ExecutionEngine::MiriWrapper,
+                                MiriPointer{x.first, x.second});
+    }
+  }
+  EEState.getMiriProvenanceMap().clear();
   EEState.getGlobalAddressMap().clear();
   EEState.getGlobalAddressReverseMap().clear();
 }
 
 void ExecutionEngine::clearGlobalMappingsFromModule(Module *M) {
   std::lock_guard<sys::Mutex> locked(lock);
-
-  for (GlobalObject &GO : M->global_objects())
-    EEState.RemoveMapping(getMangledName(&GO));
+  for (GlobalObject &GO : M->global_objects()) {
+    uint64_t addr = EEState.RemoveMapping(getMangledName(&GO));
+    if (ExecutionEngine::MiriWrapper != nullptr) {
+      ExecutionEngineState::MiriProvenanceMapTy::iterator I =
+          EEState.getMiriProvenanceMap().find(addr);
+      if (I != EEState.getMiriProvenanceMap().end()) {
+        ExecutionEngine::MiriFree(ExecutionEngine::MiriWrapper,
+                                  MiriPointer{addr, I->second});
+        EEState.getMiriProvenanceMap().erase(I);
+      }
+    }
+  }
 }
 
 uint64_t ExecutionEngine::updateGlobalMapping(const GlobalValue *GV,
@@ -288,6 +320,16 @@ void *ExecutionEngine::getPointerToGlobalIfAvailable(StringRef S) {
 void *ExecutionEngine::getPointerToGlobalIfAvailable(const GlobalValue *GV) {
   std::lock_guard<sys::Mutex> locked(lock);
   return getPointerToGlobalIfAvailable(getMangledName(GV));
+}
+
+MiriProvenance ExecutionEngine::getProvenanceOfGlobalIfAvailable(void *Addr) {
+  std::lock_guard<sys::Mutex> locked(lock);
+  MiriProvenance Prov = NULL_PROVENANCE;
+  ExecutionEngineState::MiriProvenanceMapTy::iterator I =
+      EEState.getMiriProvenanceMap().find((uint64_t)Addr);
+  if (I != EEState.getMiriProvenanceMap().end())
+    Prov = I->second;
+  return Prov;
 }
 
 const GlobalValue *ExecutionEngine::getGlobalValueAtAddress(void *Addr) {
@@ -559,6 +601,14 @@ ExecutionEngine *EngineBuilder::create(TargetMachine *TM) {
   }
 
   return nullptr;
+}
+
+MiriProvenance ExecutionEngine::getProvenanceOfGlobal(const GlobalValue *GV,
+                                                      void *Addr) {
+  if (Function *F = const_cast<Function *>(dyn_cast<Function>(GV)))
+    return NULL_PROVENANCE;
+
+  return getProvenanceOfGlobalIfAvailable(Addr);
 }
 
 void *ExecutionEngine::getPointerToGlobal(const GlobalValue *GV) {
@@ -1100,20 +1150,22 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
 }
 
 bool ExecutionEngine::LoadFromMiriMemory(GenericValue *Dest, MiriPointer Source,
-                                         Type *DestTy,
-                                         const unsigned LoadBytes) {
+                                         Type *DestTy, const unsigned LoadBytes,
+                                         uint64_t LoadAlignment) {
   LLVMGenericValueRef DestRef = wrap(Dest);
   LLVMTypeRef DestTyRef = wrap(DestTy);
   return ExecutionEngine::MiriLoad(ExecutionEngine::MiriWrapper, DestRef,
-                                   Source, DestTyRef, LoadBytes);
+                                   Source, DestTyRef, LoadBytes, LoadAlignment);
 }
 bool ExecutionEngine::StoreToMiriMemory(GenericValue *Source, MiriPointer Dest,
                                         Type *SourceTy,
-                                        const unsigned StoreBytes) {
+                                        const unsigned StoreBytes,
+                                        uint64_t StoreAlignment) {
   LLVMGenericValueRef SourceRef = wrap(Source);
   LLVMTypeRef SourceTyRef = wrap(SourceTy);
   return ExecutionEngine::MiriStore(ExecutionEngine::MiriWrapper, SourceRef,
-                                    Dest, SourceTyRef, StoreBytes);
+                                    Dest, SourceTyRef, StoreBytes,
+                                    StoreAlignment);
 }
 
 /// FIXME: document

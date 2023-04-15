@@ -298,8 +298,8 @@ GenericValue Interpreter::CallMiriFunction(Function *F,
                                            ArrayRef<GenericValue> ArgVals) {
   StringRef Name = F->getName();
   const char *NamePtr = Name.data();
-  size_t NameLength = Name.size();
-  size_t NumArgs = ArgVals.size();
+  uint64_t NameLength = Name.size();
+  uint64_t NumArgs = ArgVals.size();
   const GenericValue *Args = ArgVals.data();
   FunctionType *FType = F->getFunctionType();
   LLVMTypeRef FTypeRef = wrap(FType);
@@ -504,35 +504,6 @@ static GenericValue lle_X_printf(FunctionType *FT,
   return GV;
 }
 
-// int sscanf(const char *format, ...);
-static GenericValue lle_X_sscanf(FunctionType *FT,
-                                 ArrayRef<GenericValue> args) {
-  assert(args.size() < 10 && "Only handle up to 10 args to sscanf right now!");
-
-  char *Args[10];
-  for (unsigned i = 0; i < args.size(); ++i)
-    Args[i] = (char *)GVTOP(args[i]);
-
-  GenericValue GV;
-  GV.IntVal = APInt(32, sscanf(Args[0], Args[1], Args[2], Args[3], Args[4],
-                               Args[5], Args[6], Args[7], Args[8], Args[9]));
-  return GV;
-}
-
-// int scanf(const char *format, ...);
-static GenericValue lle_X_scanf(FunctionType *FT, ArrayRef<GenericValue> args) {
-  assert(args.size() < 10 && "Only handle up to 10 args to scanf right now!");
-
-  char *Args[10];
-  for (unsigned i = 0; i < args.size(); ++i)
-    Args[i] = (char *)GVTOP(args[i]);
-
-  GenericValue GV;
-  GV.IntVal = APInt(32, scanf(Args[0], Args[1], Args[2], Args[3], Args[4],
-                              Args[5], Args[6], Args[7], Args[8], Args[9]));
-  return GV;
-}
-
 // int fprintf(FILE *, const char *, ...) - a very rough implementation to make
 // output useful.
 static GenericValue lle_X_fprintf(FunctionType *FT,
@@ -548,30 +519,6 @@ static GenericValue lle_X_fprintf(FunctionType *FT,
   return GV;
 }
 
-static GenericValue lle_X_memset(FunctionType *FT,
-                                 ArrayRef<GenericValue> Args) {
-  int val = (int)Args[1].IntVal.getSExtValue();
-  size_t len = (size_t)Args[2].IntVal.getZExtValue();
-  memset((void *)GVTOP(Args[0]), val, len);
-  // llvm.memset.* returns void, lle_X_* returns GenericValue,
-  // so here we return GenericValue with IntVal set to zero
-  GenericValue GV;
-  GV.IntVal = 0;
-  return GV;
-}
-
-static GenericValue lle_X_memcpy(FunctionType *FT,
-                                 ArrayRef<GenericValue> Args) {
-  memcpy(GVTOP(Args[0]), GVTOP(Args[1]),
-         (size_t)(Args[2].IntVal.getLimitedValue()));
-
-  // llvm.memcpy* returns void, lle_X_* returns GenericValue,
-  // so here we return GenericValue with IntVal set to zero
-  GenericValue GV;
-  GV.IntVal = 0;
-  return GV;
-}
-
 void Interpreter::initializeExternalFunctions() {
   sys::ScopedLock Writer(*FunctionsLock);
   (*FuncNames)["lle_X_atexit"] = lle_X_atexit;
@@ -579,9 +526,5 @@ void Interpreter::initializeExternalFunctions() {
   (*FuncNames)["lle_X_abort"] = lle_X_abort;
   (*FuncNames)["lle_X_printf"] = lle_X_printf;
   (*FuncNames)["lle_X_sprintf"] = lle_X_sprintf;
-  (*FuncNames)["lle_X_sscanf"] = lle_X_sscanf;
-  (*FuncNames)["lle_X_scanf"] = lle_X_scanf;
   (*FuncNames)["lle_X_fprintf"] = lle_X_fprintf;
-  (*FuncNames)["lle_X_memset"] = lle_X_memset;
-  (*FuncNames)["lle_X_memcpy"] = lle_X_memcpy;
 }

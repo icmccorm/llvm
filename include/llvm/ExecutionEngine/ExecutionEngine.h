@@ -31,6 +31,8 @@
 #include "llvm/Support/Mutex.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm-c/Miri.h"
+#include "llvm/ExecutionEngine/Miri.h"
 #include <algorithm>
 #include <cstdint>
 #include <functional>
@@ -62,17 +64,20 @@ class ObjectFile;
 
 } // end namespace object
 
+
 /// Helper class for helping synchronize access to the global address map
 /// table.  Access to this class should be serialized under a mutex.
 class ExecutionEngineState {
 public:
   using GlobalAddressMapTy = StringMap<uint64_t>;
+  using MiriProvenanceMapTy = std::map<unsigned long long, MiriProvenance>;
 
 private:
   /// GlobalAddressMap - A mapping between LLVM global symbol names values and
   /// their actualized version...
   GlobalAddressMapTy GlobalAddressMap;
-
+  
+  MiriProvenanceMapTy MiriProvenanceMap;
   /// GlobalAddressReverseMap - This is the reverse mapping of GlobalAddressMap,
   /// used to convert raw addresses into the LLVM global value that is emitted
   /// at the address.  This map is not computed unless getGlobalValueAtAddress
@@ -81,15 +86,17 @@ private:
 
 public:
   GlobalAddressMapTy &getGlobalAddressMap() { return GlobalAddressMap; }
+  MiriProvenanceMapTy &getMiriProvenanceMap() { return MiriProvenanceMap; }
 
   std::map<uint64_t, std::string> &getGlobalAddressReverseMap() {
     return GlobalAddressReverseMap;
   }
-
+  
   /// Erase an entry from the mapping table.
   ///
   /// \returns The address that \p ToUnmap was happed to.
   uint64_t RemoveMapping(StringRef Name);
+
 };
 
 using FunctionCreator = std::function<void *(const std::string &)>;
@@ -322,6 +329,8 @@ public:
   void addGlobalMapping(const GlobalValue *GV, void *Addr);
   void addGlobalMapping(StringRef Name, uint64_t Addr);
 
+  void addMiriProvenanceEntry(const MiriPointer& Pointer);
+  
   /// clearAllGlobalMappings - Clear all global mappings and start over again,
   /// for use in dynamic compilation scenarios to move globals.
   void clearAllGlobalMappings();
@@ -347,12 +356,17 @@ public:
   void *getPointerToGlobalIfAvailable(StringRef S);
   void *getPointerToGlobalIfAvailable(const GlobalValue *GV);
 
+  MiriProvenance getProvenanceOfGlobalIfAvailable(void * Addr);
+
+
   /// getPointerToGlobal - This returns the address of the specified global
   /// value. This may involve code generation if it's a function.
   ///
   /// This function is deprecated for the MCJIT execution engine.  Use
   /// getGlobalValueAddress instead.
   void *getPointerToGlobal(const GlobalValue *GV);
+
+  MiriProvenance getProvenanceOfGlobal(const GlobalValue *GV, void * Addr);
 
   /// getPointerToFunction - The different EE's represent function bodies in
   /// different ways.  They should each implement this to say what a function
@@ -500,10 +514,10 @@ public:
   /// from Miri.
 
   bool LoadFromMiriMemory(GenericValue *Dest, MiriPointer Source, Type *DestTy,
-                          const unsigned LoadBytes);
+                          const unsigned LoadBytes, uint64_t LoadAlignment);
 
   bool StoreToMiriMemory(GenericValue *Source, MiriPointer Dest, Type *SourceTy,
-                         const unsigned StoreBytes);
+                         const unsigned StoreBytes, uint64_t StoreAlignment);
 
   void setMiriInterpCxWrapper(void *Wrapper) { MiriWrapper = Wrapper; }
 

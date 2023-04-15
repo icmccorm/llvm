@@ -34,9 +34,8 @@ struct GenericValue {
     unsigned char Untyped[8];
   };
   APInt IntVal; // also used for long doubles.
-  // For aggregate data types.
-  MiriPointer MiriPointerVal;
-  MiriPointer MiriParentPointerVal;
+  MiriProvenance Provenance;
+  MiriProvenance ParentProvenance;
   std::vector<GenericValue> AggregateVal;
 
   // to make code faster, set GenericValue to zero could be omitted, but it is
@@ -47,18 +46,26 @@ struct GenericValue {
     UIntPairVal.second = 0;
   }
   explicit GenericValue(MiriPointer Meta)
-      : PointerVal((void *)(intptr_t)Meta.addr), IntVal(1, 0), MiriPointerVal(Meta) {}
+      : PointerVal((void *)(intptr_t)Meta.addr), IntVal(1, 0),
+        Provenance(Meta.prov) {}
   explicit GenericValue(void *V)
-      : PointerVal(V), IntVal(1, 0),
-        MiriPointerVal({.addr = 0, .alloc_id = 0, .tag = 0, .offset = 0}),
-        MiriParentPointerVal(
-            {.addr = 0, .alloc_id = 0, .tag = 0, .offset = 0}) {}
+      : PointerVal(V), IntVal(1, 0), Provenance(MiriProvenance{
+                                         .alloc_id = 0,
+                                         .tag = 0,
+                                     }),
+        ParentProvenance({
+            .alloc_id = 0,
+            .tag = 0,
+        }) {}
 };
 inline GenericValue MiriPointerTOGV(MiriPointer P) { return GenericValue(P); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }
 inline void *GVTOP(const GenericValue &GV) { return GV.PointerVal; }
-inline MiriPointer GVTOMiriPointer(const GenericValue &GV) {
-  return GV.MiriPointerVal;
+inline MiriPointer GVTOMiriPointer(GenericValue &GV) {
+  return MiriPointer {
+    .addr = (unsigned long long)(uintptr_t)GV.PointerVal,
+    .prov = GV.Provenance,
+  };
 }
 } // end namespace llvm
 

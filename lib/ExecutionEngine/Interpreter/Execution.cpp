@@ -200,7 +200,8 @@ static void executeFRemInst(GenericValue &Dest, GenericValue Src1,
 static GenericValue executeICMP_EQ(GenericValue Src1, GenericValue Src2,
                                    Type *Ty) {
   GenericValue Dest;
-  //print the contents of PointerVal for each Src1 and Src2, as well as the result of == for both to cout
+  // print the contents of PointerVal for each Src1 and Src2, as well as the
+  // result of == for both to cout
   switch (Ty->getTypeID()) {
     IMPLEMENT_INTEGER_ICMP(eq, Ty);
     IMPLEMENT_VECTOR_INTEGER_ICMP(eq, Ty);
@@ -1157,13 +1158,14 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   unsigned TypeSize = (size_t)getDataLayout().getTypeAllocSize(Ty);
 
   // Avoid malloc-ing zero bytes, use max()...
-  unsigned MemToAlloc = std::max(1U, NumElements * TypeSize);
+  uint64_t MemToAlloc = std::max(1U, NumElements * TypeSize);
+  uint64_t Alignment = I.getAlign().value();
 
   if (Interpreter::ExecutionEngine::MiriMalloc != nullptr) {
     assert(Interpreter::ExecutionEngine::MiriWrapper != nullptr &&
            "MiriWrapper is null!");
     MiriPointer MiriPointerVal = Interpreter::ExecutionEngine::MiriMalloc(
-        Interpreter::ExecutionEngine::MiriWrapper, MemToAlloc);
+        Interpreter::ExecutionEngine::MiriWrapper, MemToAlloc, Alignment);
     LLVM_DEBUG(dbgs() << "Miri Allocated Type: " << *Ty << " (" << TypeSize
                       << " bytes) x " << NumElements
                       << " (Total: " << MemToAlloc << ") at "
@@ -1223,7 +1225,9 @@ GenericValue Interpreter::executeGEPOperation(Value *Ptr, gep_type_iterator I,
   }
 
   GenericValue Result;
-  Result.PointerVal = ((char *)getOperandValue(Ptr, SF).PointerVal) + Total;
+  GenericValue OperandValue = getOperandValue(Ptr, SF);
+  Result.PointerVal = ((char *)OperandValue.PointerVal) + Total;
+  Result.Provenance = OperandValue.Provenance;
   LLVM_DEBUG(dbgs() << "GEP Index " << Total << " bytes.\n");
   return Result;
 }
@@ -1240,18 +1244,19 @@ void Interpreter::visitLoadInst(LoadInst &I) {
   ExecutionContext &SF = Interpreter::context();
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   GenericValue Result;
-  MiriPointer MiriPointerVal = SRC.MiriPointerVal;
-  if (MiriPointerVal.alloc_id != 0) {
-
-    LLVM_DEBUG(dbgs() << "Loading value from Miri memory, AllocID: "
+  MiriPointer MiriPointerVal = GVTOMiriPointer(SRC);
+  if (MiriPointerVal.prov.alloc_id != 0) {
+    LLVM_DEBUG(dbgs() << "Loading value from Miri memory, address: "
                       << MiriPointerVal.addr << " ");
     const unsigned LoadBytes = getDataLayout().getTypeStoreSize(I.getType());
+    uint64_t LoadAlign =
+        getDataLayout().getABITypeAlignment(I.getOperand(0)->getType());
     bool status = Interpreter::ExecutionEngine::LoadFromMiriMemory(
-        &Result, MiriPointerVal, I.getType(), LoadBytes);
+        &Result, MiriPointerVal, I.getType(), LoadBytes, LoadAlign);
     if (status) {
       Interpreter::registerMiriError(I);
     }
-    Result.MiriParentPointerVal = MiriPointerVal;
+    Result.ParentProvenance = SRC.Provenance;
   } else {
     LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
     GenericValue *Ptr = (GenericValue *)GVTOP(SRC);
@@ -1266,14 +1271,17 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   ExecutionContext &SF = Interpreter::context();
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
-  MiriPointer MiriPointerVal = SRC.MiriPointerVal;
-  if (MiriPointerVal.alloc_id != 0) {
-    LLVM_DEBUG(dbgs() << "Storing value to Miri memory, AllocID: "
-                      << MiriPointerVal.alloc_id << " ");
+  MiriPointer MiriPointerVal = GVTOMiriPointer(SRC);
+  if (MiriPointerVal.prov.alloc_id != 0) {
+    LLVM_DEBUG(dbgs() << "Storing value to Miri memory, address: "
+                      << MiriPointerVal.addr << " ");
     const unsigned StoreBytes =
         getDataLayout().getTypeStoreSize(I.getOperand(0)->getType());
+    uint64_t StoreAlign =
+        getDataLayout().getABITypeAlignment(I.getOperand(0)->getType());
     bool status = Interpreter::ExecutionEngine::StoreToMiriMemory(
-        &Val, MiriPointerVal, I.getOperand(0)->getType(), StoreBytes);
+        &Val, MiriPointerVal, I.getOperand(0)->getType(), StoreBytes,
+        StoreAlign);
     if (status) {
       Interpreter::registerMiriError(I);
     }
@@ -1339,7 +1347,6 @@ void Interpreter::visitCallBase(CallBase &I) {
   ArgVals.reserve(NumArgs);
   for (Value *V : SF.Caller->args())
     ArgVals.push_back(getOperandValue(V, SF));
-
   // To handle indirect calls, we must get the pointer value from the argument
   // and treat it as a function pointer.
   GenericValue SRC = getOperandValue(SF.Caller->getCalledOperand(), SF);
@@ -2315,7 +2322,10 @@ GenericValue Interpreter::getOperandValue(Value *V, ExecutionContext &SF) {
   } else if (Constant *CPV = dyn_cast<Constant>(V)) {
     return getConstantValue(CPV);
   } else if (GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
-    return PTOGV(getPointerToGlobal(GV));
+    void *Addr = getPointerToGlobal(GV);
+    MiriProvenance Prov = getProvenanceOfGlobalIfAvailable(Addr);
+    MiriPointer Ptr = {(unsigned long long)Addr, Prov};
+    return MiriPointerTOGV(Ptr);
   } else {
     return SF.Values[V];
   }
@@ -2334,7 +2344,7 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
           Interpreter::context().Caller->arg_size() == ArgVals.size()) &&
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
-  
+
   Interpreter::currentStack().emplace_back(
       Interpreter::ExecutionEngine::MiriWrapper,
       Interpreter::ExecutionEngine::MiriFree);

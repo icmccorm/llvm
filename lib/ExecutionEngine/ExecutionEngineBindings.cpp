@@ -21,6 +21,8 @@
 #include "llvm/Target/CodeGenCWrappers.h"
 #include "llvm/Target/TargetOptions.h"
 #include <cstring>
+#include <iostream>
+using namespace std;
 
 using namespace llvm;
 
@@ -51,8 +53,8 @@ LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P) {
 LLVMGenericValueRef
 LLVMCreateGenericValueOfMiriPointer(MiriPointer PointerMetaVal) {
   GenericValue *GenVal = new GenericValue();
-  GenVal->MiriPointerVal = PointerMetaVal;
-  GenVal->PointerVal = PointerTy(intptr_t(PointerMetaVal.addr));
+  GenVal->PointerVal = (void *)(uintptr_t)PointerMetaVal.addr;
+  GenVal->Provenance = PointerMetaVal.prov;
   return wrap(GenVal);
 }
 
@@ -66,7 +68,7 @@ size_t LLVMGetAggregateGenericValueLength(LLVMGenericValueRef GenValRef) {
 }
 
 MiriPointer LLVMGenericValueToMiriPointer(LLVMGenericValueRef GenValRef) {
-  return unwrap(GenValRef)->MiriPointerVal;
+  return GVTOMiriPointer(*unwrap(GenValRef));
 }
 
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
@@ -91,6 +93,7 @@ unsigned LLVMGenericValueIntWidth(LLVMGenericValueRef GenValRef) {
 unsigned long long LLVMGenericValueToInt(LLVMGenericValueRef GenValRef,
                                          LLVMBool IsSigned) {
   GenericValue *GenVal = unwrap(GenValRef);
+  // print int value in GenVal to cout
   if (IsSigned)
     return GenVal->IntVal.getSExtValue();
   else
@@ -113,13 +116,13 @@ double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal) {
 }
 void LLVMGenericValueSetMiriParentPointerValue(LLVMGenericValueRef GenVal,
                                                MiriPointer PointerMetaVal) {
-  unwrap(GenVal)->MiriParentPointerVal = PointerMetaVal;
+  unwrap(GenVal)->ParentProvenance = PointerMetaVal.prov;
 }
 
 void LLVMGenericValueSetMiriPointerValue(LLVMGenericValueRef GenVal,
                                          MiriPointer PointerMetaVal) {
-  unwrap(GenVal)->MiriPointerVal = PointerMetaVal;
-  unwrap(GenVal)->PointerVal = (void *)PointerMetaVal.addr;
+  unwrap(GenVal)->PointerVal = (void *)(uintptr_t)PointerMetaVal.addr;
+  unwrap(GenVal)->Provenance = PointerMetaVal.prov;
 }
 
 void LLVMGenericValueSetDoubleValue(LLVMGenericValueRef GenVal,
