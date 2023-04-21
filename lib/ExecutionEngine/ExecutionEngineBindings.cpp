@@ -382,7 +382,11 @@ void LLVMExecutionEngineSetMiriInterpCxWrapper(LLVMExecutionEngineRef EE,
                                                void *MiriWrapper) {
   assert(MiriWrapper && "MiriWrapper must be non-null");
   auto *ExecEngine = unwrap(EE);
+  void *PrevWrapper = ExecEngine->MiriWrapper;
   ExecEngine->setMiriInterpCxWrapper(MiriWrapper);
+  if(PrevWrapper == nullptr){
+    ExecEngine->emitGlobals();
+  }
 }
 void LLVMExecutionEngineSetMiriLoadHook(LLVMExecutionEngineRef EE,
                                         MiriLoadStoreHook IncomingLoadHook) {
@@ -410,6 +414,22 @@ void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE,
   assert(IncomingFree && "IncomingFree must be non-null");
   auto *ExecEngine = unwrap(EE);
   ExecEngine->setMiriFree(IncomingFree);
+}
+
+void LLVMExecutionEngineSetMiriMemset(
+    LLVMExecutionEngineRef EE,
+    MiriMemset IncomingMemset) {
+      assert(IncomingMemset && "IncomingMemset must be non-null");
+      auto *ExecEngine = unwrap(EE);
+      ExecEngine->setMiriMemset(IncomingMemset);
+}
+
+void LLVMExecutionEngineSetMiriMemcpy(
+    LLVMExecutionEngineRef EE,
+    MiriMemcpy IncomingMemcpy) {
+      assert(IncomingMemcpy && "IncomingMemset must be non-null");
+      auto *ExecEngine = unwrap(EE);
+      ExecEngine->setMiriMemcpy(IncomingMemcpy);
 }
 
 /*===-- Operations on memory managers -------------------------------------===*/

@@ -70,8 +70,7 @@ class ObjectFile;
 class ExecutionEngineState {
 public:
   using GlobalAddressMapTy = StringMap<uint64_t>;
-  using MiriProvenanceMapTy = std::map<unsigned long long, MiriProvenance>;
-
+  using MiriProvenanceMapTy = std::map<uint64_t, MiriProvenance>;
 private:
   /// GlobalAddressMap - A mapping between LLVM global symbol names values and
   /// their actualized version...
@@ -135,6 +134,7 @@ class ExecutionEngine {
 
   friend class EngineBuilder; // To allow access to JITCtor and InterpCtor.
 
+  bool MiriError = false;
 protected:
   /// The list of Modules that we are JIT'ing from.  We use a SmallVector to
   /// optimize for the case where there is only one module.
@@ -162,17 +162,19 @@ protected:
 
   std::string ErrMsg;
 
-  void *MiriWrapper = nullptr;
   MiriAllocationHook MiriMalloc = nullptr;
   MiriFreeHook MiriFree = nullptr;
   MiriCallbackHook MiriCallback = nullptr;
   MiriLoadStoreHook MiriLoad = nullptr;
   MiriLoadStoreHook MiriStore = nullptr;
   MiriStackTraceRecorderHook MiriStackTraceRecorder = nullptr;
+  MiriMemset MMemset = nullptr;
+  MiriMemcpy MMemcpy = nullptr;
 public:
   /// lock - This lock protects the ExecutionEngine and MCJIT classes. It must
   /// be held while changing the internal state of any of those classes.
   sys::Mutex lock;
+  void *MiriWrapper = nullptr;
 
   //===--------------------------------------------------------------------===//
   //  ExecutionEngine Startup
@@ -319,6 +321,8 @@ public:
   int runFunctionAsMain(Function *Fn, const std::vector<std::string> &argv,
                         const char *const *envp);
 
+
+  void emitGlobals();
   /// addGlobalMapping - Tell the execution engine that the specified global is
   /// at the specified location.  This is used internally as functions are JIT'd
   /// and as global variables are laid out in memory.  It can and should also be
@@ -326,6 +330,7 @@ public:
   /// existing data in memory. Values to be mapped should be named, and have
   /// external or weak linkage. Mappings are automatically removed when their
   /// GlobalValue is destroyed.
+
   void addGlobalMapping(const GlobalValue *GV, void *Addr);
   void addGlobalMapping(StringRef Name, uint64_t Addr);
 
@@ -420,6 +425,10 @@ public:
   void StoreValueToMemory(const GenericValue &Val, GenericValue *Ptr, Type *Ty);
 
   void InitializeMemory(const Constant *Init, void *Addr);
+
+  void InitializeMiriMemory(const Constant *Init, void *Addr, MiriProvenance Prov);
+
+  void InitializeCppMemory(const Constant *Init, void *Addr);
 
   /// getOrEmitGlobalVariable - Return the address of the specified global
   /// variable, possibly emitting it to memory if needed.  This is used by the
@@ -519,6 +528,14 @@ public:
   bool StoreToMiriMemory(GenericValue *Source, MiriPointer Dest, Type *SourceTy,
                          const unsigned StoreBytes, uint64_t StoreAlignment);
 
+  void setMiriErrorFlag() {
+    MiriError = true;
+  }
+
+  bool getMiriErrorFlag() {
+    return MiriError;
+  }
+
   void setMiriInterpCxWrapper(void *Wrapper) { MiriWrapper = Wrapper; }
 
   void setMiriCallback(MiriCallbackHook IncomingCallback) {
@@ -543,12 +560,19 @@ public:
 
   void setMiriFree(MiriFreeHook IncomingFree) { MiriFree = IncomingFree; }
 
+  void setMiriMemset(MiriMemset IncomingMemset) {MMemset = IncomingMemset; }
+
+  void setMiriMemcpy(MiriMemcpy IncomingMemcpy) {MMemcpy = IncomingMemcpy; }
+
+  bool miriIsInitialized() {
+    return MiriWrapper && MiriCallback && MiriStackTraceRecorder && MiriLoad &&
+        MiriStore && MiriMalloc && MiriFree && MMemset && MMemcpy;
+  }
+
 protected:
   ExecutionEngine(DataLayout DL) : DL(std::move(DL)) {}
   explicit ExecutionEngine(DataLayout DL, std::unique_ptr<Module> M);
   explicit ExecutionEngine(std::unique_ptr<Module> M);
-
-  void emitGlobals();
 
   void emitGlobalVariable(const GlobalVariable *GV);
 

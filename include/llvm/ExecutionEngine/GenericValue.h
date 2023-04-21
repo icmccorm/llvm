@@ -49,22 +49,16 @@ struct GenericValue {
       : PointerVal((void *)(intptr_t)Meta.addr), IntVal(1, 0),
         Provenance(Meta.prov) {}
   explicit GenericValue(void *V)
-      : PointerVal(V), IntVal(1, 0), Provenance(MiriProvenance{
-                                         .alloc_id = 0,
-                                         .tag = 0,
-                                     }),
-        ParentProvenance({
-            .alloc_id = 0,
-            .tag = 0,
-        }) {}
+      : PointerVal(V), IntVal(1, 0), Provenance(NULL_PROVENANCE),
+        ParentProvenance(NULL_PROVENANCE) {}
 };
 inline GenericValue MiriPointerTOGV(MiriPointer P) { return GenericValue(P); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }
 inline void *GVTOP(const GenericValue &GV) { return GV.PointerVal; }
 inline MiriPointer GVTOMiriPointer(GenericValue &GV) {
   return MiriPointer {
-    .addr = (unsigned long long)(uintptr_t)GV.PointerVal,
-    .prov = GV.Provenance,
+    (unsigned long long)(uintptr_t)GV.PointerVal,
+    GV.Provenance,
   };
 }
 } // end namespace llvm

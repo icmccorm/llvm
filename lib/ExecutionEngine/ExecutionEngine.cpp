@@ -39,7 +39,9 @@
 #include "llvm/Target/TargetMachine.h"
 #include <cmath>
 #include <cstring>
+#include <iostream>
 #include <mutex>
+using namespace std;
 using namespace llvm;
 
 #define DEBUG_TYPE "jit"
@@ -119,7 +121,7 @@ public:
 } // anonymous namespace
 
 char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
-  if (ExecutionEngine::MiriWrapper != nullptr) {
+  if (ExecutionEngine::miriIsInitialized()) {
     const DataLayout &TD = getDataLayout();
     Type *ElTy = GV->getValueType();
     uint64_t GVSize = (size_t)TD.getTypeAllocSize(ElTy);
@@ -129,7 +131,7 @@ char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
     ExecutionEngine::addMiriProvenanceEntry(RawMemory);
     return (char *)RawMemory.addr;
   } else {
-    return GVMemoryBlock::Create(GV, getDataLayout());
+    report_fatal_error("Cannot allocate memory outside of Miri");
   }
 }
 
@@ -188,10 +190,10 @@ uint64_t ExecutionEngineState::RemoveMapping(StringRef Name) {
     OldVal = 0;
   else {
     GlobalAddressReverseMap.erase(I->second);
+    MiriProvenanceMap.erase(I->second);
     OldVal = I->second;
     GlobalAddressMap.erase(I);
   }
-
   return OldVal;
 }
 
@@ -241,12 +243,6 @@ void ExecutionEngine::addGlobalMapping(StringRef Name, uint64_t Addr) {
 
 void ExecutionEngine::clearAllGlobalMappings() {
   std::lock_guard<sys::Mutex> locked(lock);
-  if (ExecutionEngine::MiriWrapper != nullptr) {
-    for (auto const &x : EEState.getMiriProvenanceMap()) {
-      ExecutionEngine::MiriFree(ExecutionEngine::MiriWrapper,
-                                MiriPointer{x.first, x.second});
-    }
-  }
   EEState.getMiriProvenanceMap().clear();
   EEState.getGlobalAddressMap().clear();
   EEState.getGlobalAddressReverseMap().clear();
@@ -255,16 +251,7 @@ void ExecutionEngine::clearAllGlobalMappings() {
 void ExecutionEngine::clearGlobalMappingsFromModule(Module *M) {
   std::lock_guard<sys::Mutex> locked(lock);
   for (GlobalObject &GO : M->global_objects()) {
-    uint64_t addr = EEState.RemoveMapping(getMangledName(&GO));
-    if (ExecutionEngine::MiriWrapper != nullptr) {
-      ExecutionEngineState::MiriProvenanceMapTy::iterator I =
-          EEState.getMiriProvenanceMap().find(addr);
-      if (I != EEState.getMiriProvenanceMap().end()) {
-        ExecutionEngine::MiriFree(ExecutionEngine::MiriWrapper,
-                                  MiriPointer{addr, I->second});
-        EEState.getMiriProvenanceMap().erase(I);
-      }
-    }
+    EEState.RemoveMapping(getMangledName(&GO));
   }
 }
 
@@ -980,14 +967,18 @@ GenericValue ExecutionEngine::getConstantValue(const Constant *C) {
     while (auto *A = dyn_cast<GlobalAlias>(C)) {
       C = A->getAliasee();
     }
-    if (isa<ConstantPointerNull>(C))
+    if (isa<ConstantPointerNull>(C)) {
       Result.PointerVal = nullptr;
-    else if (const Function *F = dyn_cast<Function>(C))
+    } else if (const Function *F = dyn_cast<Function>(C)) {
       Result = PTOGV(getPointerToFunctionOrStub(const_cast<Function *>(F)));
-    else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C))
-      Result = PTOGV(getOrEmitGlobalVariable(const_cast<GlobalVariable *>(GV)));
-    else
+    } else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C)) {
+      void *Addr = getOrEmitGlobalVariable(const_cast<GlobalVariable *>(GV));
+      MiriProvenance Prov = getProvenanceOfGlobalIfAvailable(Addr);
+      MiriPointer Ptr = {(uint64_t)Addr, Prov};
+      Result = MiriPointerTOGV(Ptr);
+    } else {
       llvm_unreachable("Unknown constant pointer type!");
+    }
     break;
   case Type::ScalableVectorTyID:
     report_fatal_error(
@@ -1234,8 +1225,7 @@ void ExecutionEngine::LoadValueFromMemory(GenericValue &Result,
     report_fatal_error(OS.str());
   }
 }
-
-void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
+void ExecutionEngine::InitializeCppMemory(const Constant *Init, void *Addr) {
   LLVM_DEBUG(dbgs() << "JIT: Initializing " << Addr << " ");
   LLVM_DEBUG(Init->dump());
   if (isa<UndefValue>(Init))
@@ -1245,7 +1235,7 @@ void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
     unsigned ElementSize =
         getDataLayout().getTypeAllocSize(CP->getType()->getElementType());
     for (unsigned i = 0, e = CP->getNumOperands(); i != e; ++i)
-      InitializeMemory(CP->getOperand(i), (char *)Addr + i * ElementSize);
+      InitializeCppMemory(CP->getOperand(i), (char *)Addr + i * ElementSize);
     return;
   }
 
@@ -1258,7 +1248,7 @@ void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
     unsigned ElementSize =
         getDataLayout().getTypeAllocSize(CPA->getType()->getElementType());
     for (unsigned i = 0, e = CPA->getNumOperands(); i != e; ++i)
-      InitializeMemory(CPA->getOperand(i), (char *)Addr + i * ElementSize);
+      InitializeCppMemory(CPA->getOperand(i), (char *)Addr + i * ElementSize);
     return;
   }
 
@@ -1266,8 +1256,8 @@ void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
     const StructLayout *SL =
         getDataLayout().getStructLayout(cast<StructType>(CPS->getType()));
     for (unsigned i = 0, e = CPS->getNumOperands(); i != e; ++i)
-      InitializeMemory(CPS->getOperand(i),
-                       (char *)Addr + SL->getElementOffset(i));
+      InitializeCppMemory(CPS->getOperand(i),
+                          (char *)Addr + SL->getElementOffset(i));
     return;
   }
 
@@ -1284,9 +1274,88 @@ void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
     StoreValueToMemory(Val, (GenericValue *)Addr, Init->getType());
     return;
   }
-
   LLVM_DEBUG(dbgs() << "Bad Type: " << *Init->getType() << "\n");
   llvm_unreachable("Unknown constant type to initialize memory with!");
+}
+
+void ExecutionEngine::InitializeMiriMemory(const Constant *Init, void *Addr,
+                                           MiriProvenance Prov) {
+  if (isa<UndefValue>(Init))
+    return;
+  MiriPointer ResolvedMiriPointer = MiriPointer{(uint64_t)Addr, Prov};
+
+  if (const ConstantVector *CP = dyn_cast<ConstantVector>(Init)) {
+    unsigned ElementSize =
+        getDataLayout().getTypeAllocSize(CP->getType()->getElementType());
+    for (unsigned i = 0, e = CP->getNumOperands(); i != e; ++i)
+      InitializeMiriMemory(CP->getOperand(i), (char *)Addr + i * ElementSize,
+                           Prov);
+    return;
+  }
+
+  if (isa<ConstantAggregateZero>(Init)) {
+    bool status = ExecutionEngine::MMemset(
+        ExecutionEngine::MiriWrapper, ResolvedMiriPointer, 0,
+        getDataLayout().getTypeAllocSize(Init->getType()));
+    if (status) {
+      ExecutionEngine::setMiriErrorFlag();
+    }
+    return;
+  }
+
+  if (const ConstantArray *CPA = dyn_cast<ConstantArray>(Init)) {
+    unsigned ElementSize =
+        getDataLayout().getTypeAllocSize(CPA->getType()->getElementType());
+    for (unsigned i = 0, e = CPA->getNumOperands(); i != e; ++i)
+      InitializeMiriMemory(CPA->getOperand(i), (char *)Addr + i * ElementSize,
+                           Prov);
+    return;
+  }
+
+  if (const ConstantStruct *CPS = dyn_cast<ConstantStruct>(Init)) {
+    const StructLayout *SL =
+        getDataLayout().getStructLayout(cast<StructType>(CPS->getType()));
+    for (unsigned i = 0, e = CPS->getNumOperands(); i != e; ++i)
+      InitializeMiriMemory(CPS->getOperand(i),
+                           (char *)Addr + SL->getElementOffset(i), Prov);
+    return;
+  }
+
+  if (const ConstantDataSequential *CDS =
+          dyn_cast<ConstantDataSequential>(Init)) {
+    // CDS is already laid out in host memory order.
+    StringRef Data = CDS->getRawDataValues();
+    bool status =
+        ExecutionEngine::MMemcpy(ExecutionEngine::MiriWrapper,
+                                 ResolvedMiriPointer, Data.data(), Data.size());
+    if (status) {
+      ExecutionEngine::setMiriErrorFlag();
+    }
+    return;
+  }
+
+  if (Init->getType()->isFirstClassType()) {
+    GenericValue Val = getConstantValue(Init);
+    const unsigned StoreBytes =
+        getDataLayout().getTypeStoreSize(Init->getType());
+    uint64_t StoreAlign = getDataLayout().getABITypeAlignment(Init->getType());
+    bool status = ExecutionEngine::StoreToMiriMemory(
+        &Val, ResolvedMiriPointer, Init->getType(), StoreBytes, StoreAlign);
+    if (status) {
+      ExecutionEngine::setMiriErrorFlag();
+    }
+    return;
+  }
+  LLVM_DEBUG(dbgs() << "Bad Type: " << *Init->getType() << "\n");
+  llvm_unreachable("Unknown constant type to initialize memory with!");
+}
+void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
+  MiriProvenance Prov = ExecutionEngine::getProvenanceOfGlobalIfAvailable(Addr);
+  if (Prov.alloc_id != 0) {
+    ExecutionEngine::InitializeMiriMemory(Init, Addr, Prov);
+  } else {
+    ExecutionEngine::InitializeCppMemory(Init, Addr);
+  }
 }
 
 /// EmitGlobals - Emit all of the global variables to memory, storing their

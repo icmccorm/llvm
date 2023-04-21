@@ -114,8 +114,6 @@ public:
   RetTy visit(Instruction &I) {
     static_assert(std::is_base_of<InstVisitor, SubClass>::value,
                   "Must pass the derived type to this template!");
-    // print the instruction as a string, using I.print(), creating a new
-    // raw_ostream
     switch (I.getOpcode()) {
     default:
       llvm_unreachable("Unknown instruction type encountered!");

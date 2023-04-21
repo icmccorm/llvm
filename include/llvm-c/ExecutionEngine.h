@@ -195,6 +195,14 @@ void LLVMExecutionEngineSetMiriStackTraceRecorderHook(
     LLVMExecutionEngineRef EE,
     MiriStackTraceRecorderHook IncomingStackTraceRecorderHook);
 
+void LLVMExecutionEngineSetMiriMemset(
+    LLVMExecutionEngineRef EE,
+    MiriMemset IncomingMemset);
+
+void LLVMExecutionEngineSetMiriMemcpy(
+    LLVMExecutionEngineRef EE,
+    MiriMemcpy IncomingMemcpy);
+
 /*===-- Operations on memory managers -------------------------------------===*/
 
 typedef uint8_t *(*LLVMMemoryManagerAllocateCodeSectionCallback)(

@@ -55,7 +55,6 @@ Interpreter::Interpreter(std::unique_ptr<Module> M)
   // Initialize the "backend"
   initializeExecutionEngine();
   initializeExternalFunctions();
-  emitGlobals();
 
   IL = new IntrinsicLowering(getDataLayout());
 }
@@ -95,4 +94,41 @@ GenericValue Interpreter::runFunction(Function *F,
   run();
 
   return Interpreter::popPath();
+}
+
+
+void Interpreter::registerMiriErrorWithoutLocation() {
+  ExecutionEngine::setMiriErrorFlag();
+  ExecutionPath &CurrentPath = ExecutionPaths.back();
+  for (ExecutionContext &CurrContext : CurrentPath.ECStack) {
+    if (CurrContext.Caller) {
+      DILocation *Loc = CurrContext.Caller->getDebugLoc();
+      if (Loc) {
+        StringRef ErrorFile = Loc->getFilename();
+        StringRef ErrorDir = Loc->getDirectory();
+        StackTrace.push_back(MiriErrorTrace{ErrorDir.data(),
+                                            ErrorDir.size(),
+                                            ErrorFile.data(),
+                                            ErrorFile.size(),
+                                            Loc->getLine(),
+                                            Loc->getColumn()});
+      }
+    }
+    if (this->MiriStackTraceRecorder != nullptr &&
+        this->MiriWrapper != nullptr) {
+      this->MiriStackTraceRecorder(this->MiriWrapper, StackTrace.data(),
+                                    StackTrace.size());
+    }
+  }
+}
+void Interpreter::registerMiriError(Instruction &I) {
+  DILocation *Loc = I.getDebugLoc();
+  if (Loc) {
+    StringRef ErrorFile = Loc->getFilename();
+    StringRef ErrorDir = Loc->getDirectory();
+    StackTrace.push_back(MiriErrorTrace{ErrorDir.data(), ErrorDir.size(),
+                                        ErrorFile.data(), ErrorFile.size(),
+                                        Loc->getLine(), Loc->getColumn()});
+  }
+  Interpreter::registerMiriErrorWithoutLocation();
 }

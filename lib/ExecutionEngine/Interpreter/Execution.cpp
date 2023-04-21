@@ -1245,7 +1245,7 @@ void Interpreter::visitLoadInst(LoadInst &I) {
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   GenericValue Result;
   MiriPointer MiriPointerVal = GVTOMiriPointer(SRC);
-  if (MiriPointerVal.prov.alloc_id != 0) {
+  if (ExecutionEngine::miriIsInitialized() && MiriPointerVal.prov.alloc_id != 0) {
     LLVM_DEBUG(dbgs() << "Loading value from Miri memory, address: "
                       << MiriPointerVal.addr << " ");
     const unsigned LoadBytes = getDataLayout().getTypeStoreSize(I.getType());
@@ -1272,7 +1272,7 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   MiriPointer MiriPointerVal = GVTOMiriPointer(SRC);
-  if (MiriPointerVal.prov.alloc_id != 0) {
+  if (ExecutionEngine::miriIsInitialized() && MiriPointerVal.prov.alloc_id != 0) {
     LLVM_DEBUG(dbgs() << "Storing value to Miri memory, address: "
                       << MiriPointerVal.addr << " ");
     const unsigned StoreBytes =
@@ -2324,7 +2324,7 @@ GenericValue Interpreter::getOperandValue(Value *V, ExecutionContext &SF) {
   } else if (GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
     void *Addr = getPointerToGlobal(GV);
     MiriProvenance Prov = getProvenanceOfGlobalIfAvailable(Addr);
-    MiriPointer Ptr = {(unsigned long long)Addr, Prov};
+    MiriPointer Ptr = {(uint64_t) Addr, Prov};
     return MiriPointerTOGV(Ptr);
   } else {
     return SF.Values[V];

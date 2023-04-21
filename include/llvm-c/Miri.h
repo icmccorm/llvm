@@ -23,12 +23,12 @@ LLVM_C_EXTERN_C_BEGIN
 typedef struct LLVMOpaqueGenericValue *LLVMGenericValueRef;
 
 typedef struct MiriProvenance {
-  unsigned long long int alloc_id;
-  unsigned long long int tag;
+  uint64_t alloc_id;
+  uint64_t tag;
 } MiriProvenance;
 
 typedef struct MiriPointer {
-  unsigned long long int addr;
+  uint64_t addr;
   MiriProvenance prov;
 } MiriPointer;
 
@@ -42,6 +42,8 @@ typedef struct MiriErrorTrace {
   unsigned int column;
 } MiriErrorTrace;
 
+typedef LLVMBool (*MiriMemset)(void *, MiriPointer, int, uint64_t);
+typedef LLVMBool (*MiriMemcpy)(void *, MiriPointer, const char *, uint64_t);
 typedef MiriPointer (*MiriAllocationHook)(void *, uint64_t, uint64_t);
 typedef LLVMBool (*MiriFreeHook)(void *, MiriPointer);
 typedef LLVMBool (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer,

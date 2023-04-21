@@ -155,44 +155,9 @@ public:
 
   bool miriErrorOccurred() { return MiriErrorStatus; }
 
-  void registerMiriErrorWithoutLocation() {
-    MiriErrorStatus = true;
-    ExecutionPath &CurrentPath = ExecutionPaths.back();
-    for (ExecutionContext &CurrContext : CurrentPath.ECStack) {
-      if (CurrContext.Caller) {
-        DILocation *Loc = CurrContext.Caller->getDebugLoc();
-        if (Loc) {
-          StringRef ErrorFile = Loc->getFilename();
-          StringRef ErrorDir = Loc->getDirectory();
-          StackTrace.push_back(MiriErrorTrace{.directory = ErrorDir.data(),
-                                              .directory_len = ErrorDir.size(),
-                                              .file = ErrorFile.data(),
-                                              .file_len = ErrorFile.size(),
-                                              .line = Loc->getLine(),
-                                              .column = Loc->getColumn()});
-        }
-      }
-      if (this->MiriStackTraceRecorder != nullptr &&
-          this->MiriWrapper != nullptr) {
-        this->MiriStackTraceRecorder(this->MiriWrapper, StackTrace.data(),
-                                     StackTrace.size());
-      }
-    }
-  }
-  void registerMiriError(Instruction &I) {
-    DILocation *Loc = I.getDebugLoc();
-    if (Loc) {
-      StringRef ErrorFile = Loc->getFilename();
-      StringRef ErrorDir = Loc->getDirectory();
-      StackTrace.push_back(MiriErrorTrace{.directory = ErrorDir.data(),
-                                          .directory_len = ErrorDir.size(),
-                                          .file = ErrorFile.data(),
-                                          .file_len = ErrorFile.size(),
-                                          .line = Loc->getLine(),
-                                          .column = Loc->getColumn()});
-    }
-    registerMiriErrorWithoutLocation();
-  }
+  void registerMiriErrorWithoutLocation();
+
+  void registerMiriError(Instruction &I);
 
   GenericValue popPath() {
     GenericValue Res = ExecutionPaths.back().ExitValue;
