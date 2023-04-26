@@ -135,6 +135,7 @@ class ExecutionEngine {
   friend class EngineBuilder; // To allow access to JITCtor and InterpCtor.
 
   bool MiriError = false;
+
 protected:
   /// The list of Modules that we are JIT'ing from.  We use a SmallVector to
   /// optimize for the case where there is only one module.
@@ -164,7 +165,8 @@ protected:
 
   MiriAllocationHook MiriMalloc = nullptr;
   MiriFreeHook MiriFree = nullptr;
-  MiriCallbackHook MiriCallback = nullptr;
+  MiriCallByNameHook MiriCallByName = nullptr;
+  MiriCallByPointerHook MiriCallByPointer = nullptr;
   MiriLoadStoreHook MiriLoad = nullptr;
   MiriLoadStoreHook MiriStore = nullptr;
   MiriStackTraceRecorderHook MiriStackTraceRecorder = nullptr;
@@ -538,8 +540,12 @@ public:
 
   void setMiriInterpCxWrapper(void *Wrapper) { MiriWrapper = Wrapper; }
 
-  void setMiriCallback(MiriCallbackHook IncomingCallback) {
-    MiriCallback = IncomingCallback;
+  void setMiriCallByName(MiriCallByNameHook IncomingCallback) {
+    MiriCallByName = IncomingCallback;
+  }
+
+  void setMiriCallByPointer(MiriCallByPointerHook IncomingCallback) {
+    MiriCallByPointer = IncomingCallback;
   }
 
   void setMiriStackTraceRecorder(MiriStackTraceRecorderHook IncomingRecorder) {
@@ -565,7 +571,7 @@ public:
   void setMiriMemcpy(MiriMemcpy IncomingMemcpy) {MMemcpy = IncomingMemcpy; }
 
   bool miriIsInitialized() {
-    return MiriWrapper && MiriCallback && MiriStackTraceRecorder && MiriLoad &&
+    return MiriWrapper && MiriCallByName && MiriCallByPointer && MiriStackTraceRecorder && MiriLoad &&
         MiriStore && MiriMalloc && MiriFree && MMemset && MMemcpy;
   }
 

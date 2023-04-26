@@ -71,6 +71,17 @@ MiriPointer LLVMGenericValueToMiriPointer(LLVMGenericValueRef GenValRef) {
   return GVTOMiriPointer(*unwrap(GenValRef));
 }
 
+LLVMGenericValueRef LLVMCreateAggregateGenericValue(uint64_t NumMembers) {
+  GenericValue *GenVal = new GenericValue();
+  GenVal->AggregateVal.resize(NumMembers);
+  return wrap(GenVal);
+}
+
+void LLVMGenericValueAppendAggregate(LLVMGenericValueRef GenVal,
+                                     LLVMGenericValueRef GenValElement) {
+  unwrap(GenVal)->AggregateVal.push_back(*unwrap(GenValElement));
+}
+
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
   GenericValue *GenVal = new GenericValue();
   switch (unwrap(TyRef)->getTypeID()) {
@@ -362,11 +373,18 @@ LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
   return false;
 }
 
-void LLVMExecutionEngineSetMiriCallbackHook(
-    LLVMExecutionEngineRef EE, MiriCallbackHook IncomingCallbackHook) {
+void LLVMExecutionEngineSetMiriCallByNameHook(
+    LLVMExecutionEngineRef EE, MiriCallByNameHook IncomingCallbackHook) {
   assert(IncomingCallbackHook && "IncomingCallbackHook must be non-null");
   auto *ExecEngine = unwrap(EE);
-  ExecEngine->setMiriCallback(IncomingCallbackHook);
+  ExecEngine->setMiriCallByName(IncomingCallbackHook);
+}
+
+void LLVMExecutionEngineSetMiriCallByPointerHook(
+    LLVMExecutionEngineRef EE, MiriCallByPointerHook IncomingCallbackHook) {
+  assert(IncomingCallbackHook && "IncomingCallbackHook must be non-null");
+  auto *ExecEngine = unwrap(EE);
+  ExecEngine->setMiriCallByPointer(IncomingCallbackHook);
 }
 
 void LLVMExecutionEngineSetMiriStackTraceRecorderHook(
@@ -384,7 +402,7 @@ void LLVMExecutionEngineSetMiriInterpCxWrapper(LLVMExecutionEngineRef EE,
   auto *ExecEngine = unwrap(EE);
   void *PrevWrapper = ExecEngine->MiriWrapper;
   ExecEngine->setMiriInterpCxWrapper(MiriWrapper);
-  if(PrevWrapper == nullptr){
+  if (PrevWrapper == nullptr) {
     ExecEngine->emitGlobals();
   }
 }
@@ -416,20 +434,18 @@ void LLVMExecutionEngineSetMiriFree(LLVMExecutionEngineRef EE,
   ExecEngine->setMiriFree(IncomingFree);
 }
 
-void LLVMExecutionEngineSetMiriMemset(
-    LLVMExecutionEngineRef EE,
-    MiriMemset IncomingMemset) {
-      assert(IncomingMemset && "IncomingMemset must be non-null");
-      auto *ExecEngine = unwrap(EE);
-      ExecEngine->setMiriMemset(IncomingMemset);
+void LLVMExecutionEngineSetMiriMemset(LLVMExecutionEngineRef EE,
+                                      MiriMemset IncomingMemset) {
+  assert(IncomingMemset && "IncomingMemset must be non-null");
+  auto *ExecEngine = unwrap(EE);
+  ExecEngine->setMiriMemset(IncomingMemset);
 }
 
-void LLVMExecutionEngineSetMiriMemcpy(
-    LLVMExecutionEngineRef EE,
-    MiriMemcpy IncomingMemcpy) {
-      assert(IncomingMemcpy && "IncomingMemset must be non-null");
-      auto *ExecEngine = unwrap(EE);
-      ExecEngine->setMiriMemcpy(IncomingMemcpy);
+void LLVMExecutionEngineSetMiriMemcpy(LLVMExecutionEngineRef EE,
+                                      MiriMemcpy IncomingMemcpy) {
+  assert(IncomingMemcpy && "IncomingMemset must be non-null");
+  auto *ExecEngine = unwrap(EE);
+  ExecEngine->setMiriMemcpy(IncomingMemcpy);
 }
 
 /*===-- Operations on memory managers -------------------------------------===*/

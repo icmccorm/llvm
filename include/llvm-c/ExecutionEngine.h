@@ -53,6 +53,11 @@ LLVMGenericValueRef LLVMCreateGenericValueOfInt(LLVMTypeRef Ty,
                                                 unsigned long long N,
                                                 LLVMBool IsSigned);
 
+LLVMGenericValueRef LLVMCreateAggregateGenericValue(uint64_t NumMembers);
+
+void LLVMGenericValueAppendAggregate(LLVMGenericValueRef GenVal,
+                                     LLVMGenericValueRef GenValElement);
+
 LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P);
 
 LLVMGenericValueRef LLVMCreateGenericValueOfMiriPointer(MiriPointer Prov);
@@ -173,8 +178,11 @@ LLVMBool LLVMExecutionEngineGetErrMsg(LLVMExecutionEngineRef EE,
                                       char **OutError);
 /*===-- Interoperation with Miri ------------------------------------------===*/
 
-void LLVMExecutionEngineSetMiriCallbackHook(
-    LLVMExecutionEngineRef EE, MiriCallbackHook IncomingCallbackHook);
+void LLVMExecutionEngineSetMiriCallByNameHook(
+    LLVMExecutionEngineRef EE, MiriCallByNameHook IncomingCallbackHook);
+
+void LLVMExecutionEngineSetMiriCallByPointerHook(
+    LLVMExecutionEngineRef EE, MiriCallByPointerHook IncomingCallbackHook);
 
 void LLVMExecutionEngineSetMiriInterpCxWrapper(LLVMExecutionEngineRef EE,
                                                void *MiriWrapper);
@@ -195,13 +203,11 @@ void LLVMExecutionEngineSetMiriStackTraceRecorderHook(
     LLVMExecutionEngineRef EE,
     MiriStackTraceRecorderHook IncomingStackTraceRecorderHook);
 
-void LLVMExecutionEngineSetMiriMemset(
-    LLVMExecutionEngineRef EE,
-    MiriMemset IncomingMemset);
+void LLVMExecutionEngineSetMiriMemset(LLVMExecutionEngineRef EE,
+                                      MiriMemset IncomingMemset);
 
-void LLVMExecutionEngineSetMiriMemcpy(
-    LLVMExecutionEngineRef EE,
-    MiriMemcpy IncomingMemcpy);
+void LLVMExecutionEngineSetMiriMemcpy(LLVMExecutionEngineRef EE,
+                                      MiriMemcpy IncomingMemcpy);
 
 /*===-- Operations on memory managers -------------------------------------===*/
 

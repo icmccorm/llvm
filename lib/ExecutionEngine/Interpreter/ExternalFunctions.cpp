@@ -294,8 +294,27 @@ static bool ffiInvoke(RawFunc Fn, Function *F, ArrayRef<GenericValue> ArgVals,
 }
 #endif // USE_LIBFFI
 
-GenericValue Interpreter::CallMiriFunction(Function *F,
-                                           ArrayRef<GenericValue> ArgVals) {
+GenericValue Interpreter::CallMiriFunctionByPointer(
+    FunctionType *FType, GenericValue FuncPtr, ArrayRef<GenericValue> ArgVals) {
+  MiriPointer MiriFuncPtr = GVTOMiriPointer(FuncPtr);
+  uint64_t NumArgs = ArgVals.size();
+  const GenericValue *Args = ArgVals.data();
+  LLVMGenericValueRef ArgsRef = wrap(Args);
+  GenericValue Result = GenericValue();
+  LLVMGenericValueRef ResultRef = wrap(&Result);
+  LLVMTypeRef FTypeRef = wrap(FType);
+  bool status =
+      Interpreter::MiriCallByPointer(ExecutionEngine::MiriWrapper, MiriFuncPtr,
+                                     ResultRef, ArgsRef, NumArgs, FTypeRef);
+  if (status) {
+    Interpreter::registerMiriErrorWithoutLocation();
+  }
+  return Result;
+}
+
+GenericValue
+Interpreter::CallMiriFunctionByName(Function *F,
+                                    ArrayRef<GenericValue> ArgVals) {
   StringRef Name = F->getName();
   const char *NamePtr = Name.data();
   uint64_t NameLength = Name.size();
@@ -306,9 +325,9 @@ GenericValue Interpreter::CallMiriFunction(Function *F,
   LLVMGenericValueRef ArgsRef = wrap(Args);
   GenericValue Result = GenericValue();
   LLVMGenericValueRef ResultRef = wrap(&Result);
-  bool status = Interpreter::MiriCallback(ExecutionEngine::MiriWrapper,
-                                          ResultRef, ArgsRef, NumArgs, NamePtr,
-                                          NameLength, FTypeRef);
+  bool status = Interpreter::MiriCallByName(ExecutionEngine::MiriWrapper,
+                                            ResultRef, ArgsRef, NumArgs,
+                                            NamePtr, NameLength, FTypeRef);
   if (status) {
     Interpreter::registerMiriErrorWithoutLocation();
   }
@@ -354,7 +373,7 @@ GenericValue Interpreter::callExternalFunction(Function *F,
     errs() << "Tried to execute an unknown external function: " << *F->getType()
            << " __main\n";
   } else {
-    return Interpreter::CallMiriFunction(F, ArgVals);
+    return CallMiriFunctionByName(F, ArgVals);
   }
 
 #ifndef USE_LIBFFI
@@ -391,6 +410,13 @@ static GenericValue lle_X_abort(FunctionType *FT, ArrayRef<GenericValue> Args) {
   return GenericValue();
 }
 
+// Silence warnings about sprintf. (See also
+// https://github.com/llvm/llvm-project/issues/58086)
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
 // int sprintf(char *, const char *, ...) - a very rough implementation to make
 // output useful.
 static GenericValue lle_X_sprintf(FunctionType *FT,
@@ -488,34 +514,6 @@ static GenericValue lle_X_sprintf(FunctionType *FT,
     } break;
     }
   }
-  return GV;
-}
-
-// int printf(const char *, ...) - a very rough implementation to make output
-// useful.
-static GenericValue lle_X_printf(FunctionType *FT,
-                                 ArrayRef<GenericValue> Args) {
-  char Buffer[10000];
-  std::vector<GenericValue> NewArgs;
-  NewArgs.push_back(PTOGV((void *)&Buffer[0]));
-  llvm::append_range(NewArgs, Args);
-  GenericValue GV = lle_X_sprintf(FT, NewArgs);
-  outs() << Buffer;
-  return GV;
-}
-
-// int fprintf(FILE *, const char *, ...) - a very rough implementation to make
-// output useful.
-static GenericValue lle_X_fprintf(FunctionType *FT,
-                                  ArrayRef<GenericValue> Args) {
-  assert(Args.size() >= 2);
-  char Buffer[10000];
-  std::vector<GenericValue> NewArgs;
-  NewArgs.push_back(PTOGV(Buffer));
-  NewArgs.insert(NewArgs.end(), Args.begin() + 1, Args.end());
-  GenericValue GV = lle_X_sprintf(FT, NewArgs);
-
-  fputs(Buffer, (FILE *)GVTOP(Args[0]));
   return GV;
 }
 

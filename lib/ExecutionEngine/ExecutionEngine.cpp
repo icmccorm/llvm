@@ -121,6 +121,12 @@ public:
 } // anonymous namespace
 
 char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
+  //create llvm raw_ostream for a string to print the type
+  std::string str;
+  llvm::raw_string_ostream OS(str);
+  //print the type of the global variable
+  GV->getType()->print(OS);
+
   if (ExecutionEngine::miriIsInitialized()) {
     const DataLayout &TD = getDataLayout();
     Type *ElTy = GV->getValueType();
@@ -131,7 +137,7 @@ char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
     ExecutionEngine::addMiriProvenanceEntry(RawMemory);
     return (char *)RawMemory.addr;
   } else {
-    report_fatal_error("Cannot allocate memory outside of Miri");
+    report_fatal_error("Miri is not initialized");
   }
 }
 
@@ -1467,7 +1473,7 @@ void ExecutionEngine::emitGlobalVariable(const GlobalVariable *GV) {
   if (!GA) {
     // If it's not already specified, allocate memory for the global.
     GA = getMemoryForGV(GV);
-
+    
     // If we failed to allocate memory for this global, return.
     if (!GA)
       return;

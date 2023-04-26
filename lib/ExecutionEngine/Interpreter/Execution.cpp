@@ -1350,7 +1350,11 @@ void Interpreter::visitCallBase(CallBase &I) {
   // To handle indirect calls, we must get the pointer value from the argument
   // and treat it as a function pointer.
   GenericValue SRC = getOperandValue(SF.Caller->getCalledOperand(), SF);
-  callFunction((Function *)GVTOP(SRC), ArgVals);
+  if(SRC.Provenance.alloc_id != 0) {
+      Interpreter::CallMiriFunctionByPointer(I.getFunctionType(), SRC, ArgVals);
+  }else{
+    callFunction((Function *)GVTOP(SRC), ArgVals);
+  }
 }
 
 // auxiliary function for shift operations
@@ -1715,6 +1719,7 @@ GenericValue Interpreter::executeIntToPtrInst(Value *SrcVal, Type *DstTy,
     Src.IntVal = Src.IntVal.zextOrTrunc(PtrSize);
 
   Dest.PointerVal = PointerTy(intptr_t(Src.IntVal.getZExtValue()));
+  Dest.Provenance = Src.Provenance;
   return Dest;
 }
 

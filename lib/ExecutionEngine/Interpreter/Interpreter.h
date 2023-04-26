@@ -246,7 +246,9 @@ public:
   GenericValue callExternalFunction(Function *F,
                                     ArrayRef<GenericValue> ArgVals);
 
-  GenericValue CallMiriFunction(Function *F, ArrayRef<GenericValue> ArgVals);
+  GenericValue CallMiriFunctionByName(Function *F, ArrayRef<GenericValue> ArgVals);
+  GenericValue CallMiriFunctionByPointer(FunctionType * FType, GenericValue FuncPtr, ArrayRef<GenericValue> ArgVals);
+
 
   void exitCalled(GenericValue GV);
 
