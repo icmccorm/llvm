@@ -1161,9 +1161,7 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   uint64_t MemToAlloc = std::max(1U, NumElements * TypeSize);
   uint64_t Alignment = I.getAlign().value();
 
-  if (Interpreter::ExecutionEngine::MiriMalloc != nullptr) {
-    assert(Interpreter::ExecutionEngine::MiriWrapper != nullptr &&
-           "MiriWrapper is null!");
+  if (Interpreter::ExecutionEngine::miriIsInitialized()) {
     MiriPointer MiriPointerVal = Interpreter::ExecutionEngine::MiriMalloc(
         Interpreter::ExecutionEngine::MiriWrapper, MemToAlloc, Alignment);
     LLVM_DEBUG(dbgs() << "Miri Allocated Type: " << *Ty << " (" << TypeSize
@@ -1176,16 +1174,7 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
     if (I.getOpcode() == Instruction::Alloca)
       Interpreter::context().MiriAllocas.add(MiriPointerVal);
   } else {
-    // Allocate enough memory to hold the type...
-    void *Memory = safe_malloc(MemToAlloc);
-    LLVM_DEBUG(dbgs() << "Allocated Type: " << *Ty << " (" << TypeSize
-                      << " bytes) x " << NumElements << " (Total: "
-                      << MemToAlloc << ") at " << uintptr_t(Memory) << '\n');
-    GenericValue Result = PTOGV(Memory);
-    assert(Result.PointerVal && "Null pointer returned by malloc!");
-    SetValue(&I, Result, SF);
-    if (I.getOpcode() == Instruction::Alloca)
-      Interpreter::context().Allocas.add(Memory);
+    report_fatal_error("Miri isn't initialized.");
   }
 }
 
@@ -1245,7 +1234,7 @@ void Interpreter::visitLoadInst(LoadInst &I) {
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   GenericValue Result;
   MiriPointer MiriPointerVal = GVTOMiriPointer(SRC);
-  if (ExecutionEngine::miriIsInitialized() && MiriPointerVal.prov.alloc_id != 0) {
+  if (ExecutionEngine::miriIsInitialized()) {
     LLVM_DEBUG(dbgs() << "Loading value from Miri memory, address: "
                       << MiriPointerVal.addr << " ");
     const unsigned LoadBytes = getDataLayout().getTypeStoreSize(I.getType());
@@ -1255,12 +1244,11 @@ void Interpreter::visitLoadInst(LoadInst &I) {
         &Result, MiriPointerVal, I.getType(), LoadBytes, LoadAlign);
     if (status) {
       Interpreter::registerMiriError(I);
+      return;
     }
     Result.ParentProvenance = SRC.Provenance;
   } else {
-    LLVM_DEBUG(dbgs() << "Loading value from C++ memory: ");
-    GenericValue *Ptr = (GenericValue *)GVTOP(SRC);
-    LoadValueFromMemory(Result, Ptr, I.getType());
+    report_fatal_error("Miri isn't initialized.");
   }
   SetValue(&I, Result, SF);
   if (I.isVolatile() && PrintVolatile)
@@ -1271,8 +1259,10 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   ExecutionContext &SF = Interpreter::context();
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
+
   MiriPointer MiriPointerVal = GVTOMiriPointer(SRC);
-  if (ExecutionEngine::miriIsInitialized() && MiriPointerVal.prov.alloc_id != 0) {
+
+  if (ExecutionEngine::miriIsInitialized()) {
     LLVM_DEBUG(dbgs() << "Storing value to Miri memory, address: "
                       << MiriPointerVal.addr << " ");
     const unsigned StoreBytes =
@@ -1284,11 +1274,10 @@ void Interpreter::visitStoreInst(StoreInst &I) {
         StoreAlign);
     if (status) {
       Interpreter::registerMiriError(I);
+      return;
     }
   } else {
-    LLVM_DEBUG(dbgs() << "Storing value to C++ memory: ");
-    StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
-                       I.getOperand(0)->getType());
+    report_fatal_error("Miri isn't initialized.");
   }
   if (I.isVolatile() && PrintVolatile)
     dbgs() << "Volatile store: " << I;
@@ -1350,9 +1339,9 @@ void Interpreter::visitCallBase(CallBase &I) {
   // To handle indirect calls, we must get the pointer value from the argument
   // and treat it as a function pointer.
   GenericValue SRC = getOperandValue(SF.Caller->getCalledOperand(), SF);
-  if(SRC.Provenance.alloc_id != 0) {
-      Interpreter::CallMiriFunctionByPointer(I.getFunctionType(), SRC, ArgVals);
-  }else{
+  if (SRC.Provenance.alloc_id != 0) {
+    Interpreter::CallMiriFunctionByPointer(I.getFunctionType(), SRC, ArgVals);
+  } else {
     callFunction((Function *)GVTOP(SRC), ArgVals);
   }
 }
@@ -1701,26 +1690,31 @@ GenericValue Interpreter::executeSIToFPInst(Value *SrcVal, Type *DstTy,
 
 GenericValue Interpreter::executePtrToIntInst(Value *SrcVal, Type *DstTy,
                                               ExecutionContext &SF) {
-  uint32_t DBitWidth = cast<IntegerType>(DstTy)->getBitWidth();
   GenericValue Dest, Src = getOperandValue(SrcVal, SF);
   assert(SrcVal->getType()->isPointerTy() && "Invalid PtrToInt instruction");
-
-  Dest.IntVal = APInt(DBitWidth, (intptr_t)Src.PointerVal);
-  return Dest;
+  if (ExecutionEngine::miriIsInitialized()) {
+    uint64_t SrcAsInt = ExecutionEngine::MPtrToInt(ExecutionEngine::MiriWrapper,
+                                                   GVTOMiriPointer(Src));
+    Dest.IntVal = APInt(MIRI_POINTER_BIT_WIDTH, SrcAsInt);
+    return Dest;
+  } else {
+    report_fatal_error("Miri is not initialized");
+  }
 }
 
 GenericValue Interpreter::executeIntToPtrInst(Value *SrcVal, Type *DstTy,
                                               ExecutionContext &SF) {
-  GenericValue Dest, Src = getOperandValue(SrcVal, SF);
+  GenericValue Src = getOperandValue(SrcVal, SF);
   assert(DstTy->isPointerTy() && "Invalid PtrToInt instruction");
-
-  uint32_t PtrSize = getDataLayout().getPointerSizeInBits();
-  if (PtrSize != Src.IntVal.getBitWidth())
-    Src.IntVal = Src.IntVal.zextOrTrunc(PtrSize);
-
-  Dest.PointerVal = PointerTy(intptr_t(Src.IntVal.getZExtValue()));
-  Dest.Provenance = Src.Provenance;
-  return Dest;
+  if (MIRI_POINTER_BIT_WIDTH != Src.IntVal.getBitWidth())
+    Src.IntVal = Src.IntVal.zextOrTrunc(MIRI_POINTER_BIT_WIDTH);
+  if (ExecutionEngine::miriIsInitialized()) {
+    MiriPointer Converted = ExecutionEngine::MIntToPtr(
+        ExecutionEngine::MiriWrapper, uint64_t(Src.IntVal.getZExtValue()));
+    return MiriPointerTOGV(Converted);
+  } else {
+    report_fatal_error("Miri is not initialized");
+  }
 }
 
 GenericValue Interpreter::executeBitCastInst(Value *SrcVal, Type *DstTy,
@@ -1736,6 +1730,9 @@ GenericValue Interpreter::executeBitCastInst(Value *SrcVal, Type *DstTy,
     // scalar src bitcast to vector dst
     bool isLittleEndian = getDataLayout().isLittleEndian();
     GenericValue TempDst, TempSrc, SrcVec;
+    TempDst.Provenance = Dest.Provenance;
+    TempSrc.Provenance = Src.Provenance;
+
     Type *SrcElemTy;
     Type *DstElemTy;
     unsigned SrcBitSize;
@@ -1858,6 +1855,7 @@ GenericValue Interpreter::executeBitCastInst(Value *SrcVal, Type *DstTy,
     if (DstTy->isPointerTy()) {
       assert(SrcTy->isPointerTy() && "Invalid BitCast");
       Dest.PointerVal = Src.PointerVal;
+      Dest.Provenance = Src.Provenance;
     } else if (DstTy->isIntegerTy()) {
       if (SrcTy->isFloatTy())
         Dest.IntVal = APInt::floatToBits(Src.FloatVal);
@@ -1991,6 +1989,9 @@ void Interpreter::visitExtractElementInst(ExtractElementInst &I) {
 
   Type *Ty = I.getType();
   const unsigned indx = unsigned(Src2.IntVal.getZExtValue());
+
+  MiriProvenance ElemProvenance = Src1.AggregateVal[indx].Provenance;
+  Dest.Provenance = ElemProvenance;
 
   if (Src1.AggregateVal.size() > indx) {
     switch (Ty->getTypeID()) {
@@ -2156,7 +2157,7 @@ void Interpreter::visitExtractValueInst(ExtractValueInst &I) {
     Dest.PointerVal = pSrc->PointerVal;
     break;
   }
-
+  Dest.Provenance = pSrc->Provenance;
   SetValue(&I, Dest, SF);
 }
 
@@ -2205,7 +2206,7 @@ void Interpreter::visitInsertValueInst(InsertValueInst &I) {
     pDest->PointerVal = Src2.PointerVal;
     break;
   }
-
+  pDest->Provenance = Src2.Provenance;
   SetValue(&I, Dest, SF);
 }
 
@@ -2258,31 +2259,39 @@ GenericValue Interpreter::getConstantExprValue(ConstantExpr *CE,
   GenericValue Op0 = getOperandValue(CE->getOperand(0), SF);
   GenericValue Op1 = getOperandValue(CE->getOperand(1), SF);
   GenericValue Dest;
-  Type *Ty = CE->getOperand(0)->getType();
+  Type *Ty0 = CE->getOperand(0)->getType();
+  Type *Ty1 = CE->getOperand(1)->getType();
+  bool ShouldPassProvenance = Ty0->isPointerTy() && !Ty1->isPointerTy();
   switch (CE->getOpcode()) {
   case Instruction::Add:
     Dest.IntVal = Op0.IntVal + Op1.IntVal;
+    if (ShouldPassProvenance) {
+      Dest.Provenance = Op0.Provenance;
+    }
     break;
   case Instruction::Sub:
     Dest.IntVal = Op0.IntVal - Op1.IntVal;
+    if (ShouldPassProvenance) {
+      Dest.Provenance = Op0.Provenance;
+    }
     break;
   case Instruction::Mul:
     Dest.IntVal = Op0.IntVal * Op1.IntVal;
     break;
   case Instruction::FAdd:
-    executeFAddInst(Dest, Op0, Op1, Ty);
+    executeFAddInst(Dest, Op0, Op1, Ty0);
     break;
   case Instruction::FSub:
-    executeFSubInst(Dest, Op0, Op1, Ty);
+    executeFSubInst(Dest, Op0, Op1, Ty0);
     break;
   case Instruction::FMul:
-    executeFMulInst(Dest, Op0, Op1, Ty);
+    executeFMulInst(Dest, Op0, Op1, Ty0);
     break;
   case Instruction::FDiv:
-    executeFDivInst(Dest, Op0, Op1, Ty);
+    executeFDivInst(Dest, Op0, Op1, Ty0);
     break;
   case Instruction::FRem:
-    executeFRemInst(Dest, Op0, Op1, Ty);
+    executeFRemInst(Dest, Op0, Op1, Ty0);
     break;
   case Instruction::SDiv:
     Dest.IntVal = Op0.IntVal.sdiv(Op1.IntVal);
@@ -2329,7 +2338,7 @@ GenericValue Interpreter::getOperandValue(Value *V, ExecutionContext &SF) {
   } else if (GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
     void *Addr = getPointerToGlobal(GV);
     MiriProvenance Prov = getProvenanceOfGlobalIfAvailable(Addr);
-    MiriPointer Ptr = {(uint64_t) Addr, Prov};
+    MiriPointer Ptr = {(uint64_t)Addr, Prov};
     return MiriPointerTOGV(Ptr);
   } else {
     return SF.Values[V];
@@ -2395,8 +2404,9 @@ void Interpreter::run() {
 
     LLVM_DEBUG(dbgs() << "About to interpret: " << I << "\n");
     visit(I); // Dispatch to one of the visit* methods...
-    if (Interpreter::miriErrorOccurred()) {
-      return;
+    if (ExecutionEngine::getMiriErrorFlag()) {
+      // Error occurred, stop execution.
+      break;
     }
   }
 }

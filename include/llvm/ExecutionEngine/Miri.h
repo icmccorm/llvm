@@ -19,5 +19,6 @@ inline bool operator==(MiriPointer const &lhs, MiriPointer const &rhs) {
   return lhs.addr == rhs.addr && lhs.prov.alloc_id == rhs.prov.alloc_id &&
          lhs.prov.tag == rhs.prov.tag;
 }
+const uint32_t MIRI_POINTER_BIT_WIDTH = 64;
 
 #endif

@@ -22,6 +22,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
+#include "llvm/ExecutionEngine/Miri.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Object/Binary.h"
@@ -31,8 +32,6 @@
 #include "llvm/Support/Mutex.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm-c/Miri.h"
-#include "llvm/ExecutionEngine/Miri.h"
 #include <algorithm>
 #include <cstdint>
 #include <functional>
@@ -64,18 +63,18 @@ class ObjectFile;
 
 } // end namespace object
 
-
 /// Helper class for helping synchronize access to the global address map
 /// table.  Access to this class should be serialized under a mutex.
 class ExecutionEngineState {
 public:
   using GlobalAddressMapTy = StringMap<uint64_t>;
   using MiriProvenanceMapTy = std::map<uint64_t, MiriProvenance>;
+
 private:
   /// GlobalAddressMap - A mapping between LLVM global symbol names values and
   /// their actualized version...
   GlobalAddressMapTy GlobalAddressMap;
-  
+
   MiriProvenanceMapTy MiriProvenanceMap;
   /// GlobalAddressReverseMap - This is the reverse mapping of GlobalAddressMap,
   /// used to convert raw addresses into the LLVM global value that is emitted
@@ -90,12 +89,11 @@ public:
   std::map<uint64_t, std::string> &getGlobalAddressReverseMap() {
     return GlobalAddressReverseMap;
   }
-  
+
   /// Erase an entry from the mapping table.
   ///
   /// \returns The address that \p ToUnmap was happed to.
   uint64_t RemoveMapping(StringRef Name);
-
 };
 
 using FunctionCreator = std::function<void *(const std::string &)>;
@@ -172,6 +170,9 @@ protected:
   MiriStackTraceRecorderHook MiriStackTraceRecorder = nullptr;
   MiriMemset MMemset = nullptr;
   MiriMemcpy MMemcpy = nullptr;
+  MiriIntToPtr MIntToPtr = nullptr;
+  MiriPtrToInt MPtrToInt = nullptr;
+
 public:
   /// lock - This lock protects the ExecutionEngine and MCJIT classes. It must
   /// be held while changing the internal state of any of those classes.
@@ -323,7 +324,6 @@ public:
   int runFunctionAsMain(Function *Fn, const std::vector<std::string> &argv,
                         const char *const *envp);
 
-
   void emitGlobals();
   /// addGlobalMapping - Tell the execution engine that the specified global is
   /// at the specified location.  This is used internally as functions are JIT'd
@@ -336,8 +336,8 @@ public:
   void addGlobalMapping(const GlobalValue *GV, void *Addr);
   void addGlobalMapping(StringRef Name, uint64_t Addr);
 
-  void addMiriProvenanceEntry(const MiriPointer& Pointer);
-  
+  void addMiriProvenanceEntry(const MiriPointer &Pointer);
+
   /// clearAllGlobalMappings - Clear all global mappings and start over again,
   /// for use in dynamic compilation scenarios to move globals.
   void clearAllGlobalMappings();
@@ -363,8 +363,7 @@ public:
   void *getPointerToGlobalIfAvailable(StringRef S);
   void *getPointerToGlobalIfAvailable(const GlobalValue *GV);
 
-  MiriProvenance getProvenanceOfGlobalIfAvailable(void * Addr);
-
+  MiriProvenance getProvenanceOfGlobalIfAvailable(void *Addr);
 
   /// getPointerToGlobal - This returns the address of the specified global
   /// value. This may involve code generation if it's a function.
@@ -373,7 +372,7 @@ public:
   /// getGlobalValueAddress instead.
   void *getPointerToGlobal(const GlobalValue *GV);
 
-  MiriProvenance getProvenanceOfGlobal(const GlobalValue *GV, void * Addr);
+  MiriProvenance getProvenanceOfGlobal(const GlobalValue *GV, void *Addr);
 
   /// getPointerToFunction - The different EE's represent function bodies in
   /// different ways.  They should each implement this to say what a function
@@ -428,7 +427,8 @@ public:
 
   void InitializeMemory(const Constant *Init, void *Addr);
 
-  void InitializeMiriMemory(const Constant *Init, void *Addr, MiriProvenance Prov);
+  void InitializeMiriMemory(const Constant *Init, void *Addr,
+                            MiriProvenance Prov);
 
   void InitializeCppMemory(const Constant *Init, void *Addr);
 
@@ -530,13 +530,9 @@ public:
   bool StoreToMiriMemory(GenericValue *Source, MiriPointer Dest, Type *SourceTy,
                          const unsigned StoreBytes, uint64_t StoreAlignment);
 
-  void setMiriErrorFlag() {
-    MiriError = true;
-  }
+  void setMiriErrorFlag() { MiriError = true; }
 
-  bool getMiriErrorFlag() {
-    return MiriError;
-  }
+  bool getMiriErrorFlag() { return MiriError; }
 
   void setMiriInterpCxWrapper(void *Wrapper) { MiriWrapper = Wrapper; }
 
@@ -566,13 +562,22 @@ public:
 
   void setMiriFree(MiriFreeHook IncomingFree) { MiriFree = IncomingFree; }
 
-  void setMiriMemset(MiriMemset IncomingMemset) {MMemset = IncomingMemset; }
+  void setMiriMemset(MiriMemset IncomingMemset) { MMemset = IncomingMemset; }
 
-  void setMiriMemcpy(MiriMemcpy IncomingMemcpy) {MMemcpy = IncomingMemcpy; }
+  void setMiriMemcpy(MiriMemcpy IncomingMemcpy) { MMemcpy = IncomingMemcpy; }
+
+  void setMiriIntToPtr(MiriIntToPtr IncomingIntToPtr) {
+    MIntToPtr = IncomingIntToPtr;
+  }
+
+  void setMiriPtrToInt(MiriPtrToInt IncomingPtrToInt) {
+    MPtrToInt = IncomingPtrToInt;
+  }
 
   bool miriIsInitialized() {
-    return MiriWrapper && MiriCallByName && MiriCallByPointer && MiriStackTraceRecorder && MiriLoad &&
-        MiriStore && MiriMalloc && MiriFree && MMemset && MMemcpy;
+    return MiriWrapper && MiriCallByName && MiriCallByPointer &&
+           MiriStackTraceRecorder && MiriLoad && MiriStore && MiriMalloc &&
+           MiriFree && MMemset && MMemcpy && MIntToPtr && MPtrToInt;
   }
 
 protected:

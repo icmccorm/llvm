@@ -112,7 +112,6 @@ class Interpreter : public ExecutionEngine, public InstVisitor<Interpreter> {
 
   std::vector<ExecutionPath> ExecutionPaths;
 
-  bool MiriErrorStatus = false;
   std::vector<MiriErrorTrace> StackTrace;
 
 public:
@@ -152,8 +151,6 @@ public:
   void setExitValue(GenericValue Val) { ExecutionPaths.back().ExitValue = Val; }
 
   void pushPath() { ExecutionPaths.push_back(ExecutionPath()); }
-
-  bool miriErrorOccurred() { return MiriErrorStatus; }
 
   void registerMiriErrorWithoutLocation();
 

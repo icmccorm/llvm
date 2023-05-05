@@ -121,12 +121,6 @@ public:
 } // anonymous namespace
 
 char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
-  //create llvm raw_ostream for a string to print the type
-  std::string str;
-  llvm::raw_string_ostream OS(str);
-  //print the type of the global variable
-  GV->getType()->print(OS);
-
   if (ExecutionEngine::miriIsInitialized()) {
     const DataLayout &TD = getDataLayout();
     Type *ElTy = GV->getValueType();
@@ -680,12 +674,13 @@ GenericValue ExecutionEngine::getConstantValue(const Constant *C) {
     switch (CE->getOpcode()) {
     case Instruction::GetElementPtr: {
       // Compute the index
-      GenericValue Result = getConstantValue(Op0);
+      GenericValue ConstResult = getConstantValue(Op0);
       APInt Offset(DL.getPointerSizeInBits(), 0);
       cast<GEPOperator>(CE)->accumulateConstantOffset(DL, Offset);
 
-      char *tmp = (char *)Result.PointerVal;
-      Result = PTOGV(tmp + Offset.getSExtValue());
+      char *tmp = (char *)ConstResult.PointerVal;
+      GenericValue Result = PTOGV(tmp + Offset.getSExtValue());
+      Result.Provenance = ConstResult.Provenance;
       return Result;
     }
     case Instruction::Trunc: {
@@ -1093,7 +1088,9 @@ GenericValue ExecutionEngine::getConstantValue(const Constant *C) {
     OS << "ERROR: Constant unimplemented for type: " << *C->getType();
     report_fatal_error(OS.str());
   }
-
+  std::string str;
+  llvm::raw_string_ostream OS(str);
+  Result.IntVal.print(OS, true);
   return Result;
 }
 
@@ -1360,7 +1357,7 @@ void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
   if (Prov.alloc_id != 0) {
     ExecutionEngine::InitializeMiriMemory(Init, Addr, Prov);
   } else {
-    ExecutionEngine::InitializeCppMemory(Init, Addr);
+    report_fatal_error("Miri isn't initialized");
   }
 }
 
@@ -1473,7 +1470,7 @@ void ExecutionEngine::emitGlobalVariable(const GlobalVariable *GV) {
   if (!GA) {
     // If it's not already specified, allocate memory for the global.
     GA = getMemoryForGV(GV);
-    
+
     // If we failed to allocate memory for this global, return.
     if (!GA)
       return;

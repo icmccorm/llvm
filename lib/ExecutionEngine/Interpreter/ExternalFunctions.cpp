@@ -517,6 +517,19 @@ static GenericValue lle_X_sprintf(FunctionType *FT,
   return GV;
 }
 
+// int printf(const char *, ...) - a very rough implementation to make output
+// useful.
+static GenericValue lle_X_printf(FunctionType *FT,
+                                 ArrayRef<GenericValue> Args) {
+  char Buffer[10000];
+  std::vector<GenericValue> NewArgs;
+  NewArgs.push_back(PTOGV((void *)&Buffer[0]));
+  llvm::append_range(NewArgs, Args);
+  GenericValue GV = lle_X_sprintf(FT, NewArgs);
+  outs() << Buffer;
+  return GV;
+}
+
 void Interpreter::initializeExternalFunctions() {
   sys::ScopedLock Writer(*FunctionsLock);
   (*FuncNames)["lle_X_atexit"] = lle_X_atexit;

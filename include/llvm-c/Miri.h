@@ -17,7 +17,7 @@
 #include "llvm-c/ExternC.h"
 #include "llvm-c/Types.h"
 #include <stddef.h>
-
+#include <stdbool.h>
 LLVM_C_EXTERN_C_BEGIN
 
 typedef struct LLVMOpaqueGenericValue *LLVMGenericValueRef;
@@ -42,20 +42,25 @@ typedef struct MiriErrorTrace {
   unsigned int column;
 } MiriErrorTrace;
 
-typedef LLVMBool (*MiriMemset)(void *, MiriPointer, int, uint64_t);
-typedef LLVMBool (*MiriMemcpy)(void *, MiriPointer, const char *, uint64_t);
+typedef bool (*MiriMemset)(void *, MiriPointer, int, uint64_t);
+typedef bool (*MiriMemcpy)(void *, MiriPointer, const char *, uint64_t);
+
+typedef MiriPointer (*MiriIntToPtr)(void *, uint64_t);
+typedef uint64_t (*MiriPtrToInt)(void *, MiriPointer);
+
 typedef MiriPointer (*MiriAllocationHook)(void *, uint64_t, uint64_t);
-typedef LLVMBool (*MiriFreeHook)(void *, MiriPointer);
-typedef LLVMBool (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer,
-                                      LLVMTypeRef, uint64_t, uint64_t);
+typedef bool (*MiriFreeHook)(void *, MiriPointer);
+typedef bool (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer,
+                                  LLVMTypeRef, uint64_t, uint64_t);
 typedef void (*MiriStackTraceRecorderHook)(void *, MiriErrorTrace *const,
                                            uint64_t);
 typedef LLVMGenericValueRef (*MiriCallByNameHook)(void *, LLVMGenericValueRef,
-                                                LLVMGenericValueRef, uint64_t,
-                                                const char *, uint64_t,
-                                                LLVMTypeRef);
+                                                  LLVMGenericValueRef, uint64_t,
+                                                  const char *, uint64_t,
+                                                  LLVMTypeRef);
 typedef LLVMGenericValueRef (*MiriCallByPointerHook)(void *, MiriPointer,
-                                                LLVMGenericValueRef, LLVMGenericValueRef, uint64_t,
-                                                LLVMTypeRef);
+                                                     LLVMGenericValueRef,
+                                                     LLVMGenericValueRef,
+                                                     uint64_t, LLVMTypeRef);
 LLVM_C_EXTERN_C_END
 #endif // LLVM_C_MIRI_H

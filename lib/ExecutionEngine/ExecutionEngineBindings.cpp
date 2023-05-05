@@ -97,6 +97,14 @@ LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
   return wrap(GenVal);
 }
 
+float LLVMGenericValueToFloatSingle(LLVMGenericValueRef GenVal) {
+  return unwrap(GenVal)->FloatVal;
+}
+
+double LLVMGenericValueToFloatDouble(LLVMGenericValueRef GenVal) {
+  return unwrap(GenVal)->DoubleVal;
+}
+
 unsigned LLVMGenericValueIntWidth(LLVMGenericValueRef GenValRef) {
   return unwrap(GenValRef)->IntVal.getBitWidth();
 }
@@ -104,7 +112,6 @@ unsigned LLVMGenericValueIntWidth(LLVMGenericValueRef GenValRef) {
 unsigned long long LLVMGenericValueToInt(LLVMGenericValueRef GenValRef,
                                          LLVMBool IsSigned) {
   GenericValue *GenVal = unwrap(GenValRef);
-  // print int value in GenVal to cout
   if (IsSigned)
     return GenVal->IntVal.getSExtValue();
   else
@@ -446,6 +453,20 @@ void LLVMExecutionEngineSetMiriMemcpy(LLVMExecutionEngineRef EE,
   assert(IncomingMemcpy && "IncomingMemset must be non-null");
   auto *ExecEngine = unwrap(EE);
   ExecEngine->setMiriMemcpy(IncomingMemcpy);
+}
+
+void LLVMExecutionEngineSetMiriIntToPtr(LLVMExecutionEngineRef EE,
+                                        MiriIntToPtr IncomingIntToPtr) {
+  assert(IncomingIntToPtr && "IncomingIntToPtr must be non-null");
+  auto *ExecEngine = unwrap(EE);
+  ExecEngine->setMiriIntToPtr(IncomingIntToPtr);
+}
+
+void LLVMExecutionEngineSetMiriPtrToInt(LLVMExecutionEngineRef EE,
+                                        MiriPtrToInt IncomingPtrToInt) {
+  assert(IncomingPtrToInt && "IncomingPtrToInt must be non-null");
+  auto *ExecEngine = unwrap(EE);
+  ExecEngine->setMiriPtrToInt(IncomingPtrToInt);
 }
 
 /*===-- Operations on memory managers -------------------------------------===*/

@@ -96,7 +96,6 @@ GenericValue Interpreter::runFunction(Function *F,
   return Interpreter::popPath();
 }
 
-
 void Interpreter::registerMiriErrorWithoutLocation() {
   ExecutionEngine::setMiriErrorFlag();
   ExecutionPath &CurrentPath = ExecutionPaths.back();
@@ -106,18 +105,14 @@ void Interpreter::registerMiriErrorWithoutLocation() {
       if (Loc) {
         StringRef ErrorFile = Loc->getFilename();
         StringRef ErrorDir = Loc->getDirectory();
-        StackTrace.push_back(MiriErrorTrace{ErrorDir.data(),
-                                            ErrorDir.size(),
-                                            ErrorFile.data(),
-                                            ErrorFile.size(),
-                                            Loc->getLine(),
-                                            Loc->getColumn()});
+        StackTrace.push_back(MiriErrorTrace{ErrorDir.data(), ErrorDir.size(),
+                                            ErrorFile.data(), ErrorFile.size(),
+                                            Loc->getLine(), Loc->getColumn()});
       }
     }
-    if (this->MiriStackTraceRecorder != nullptr &&
-        this->MiriWrapper != nullptr) {
+    if (Interpreter::miriIsInitialized()) {
       this->MiriStackTraceRecorder(this->MiriWrapper, StackTrace.data(),
-                                    StackTrace.size());
+                                   StackTrace.size());
     }
   }
 }

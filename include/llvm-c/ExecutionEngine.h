@@ -75,6 +75,10 @@ MiriPointer LLVMGenericValueToMiriPointer(LLVMGenericValueRef GenVal);
 
 double LLVMGenericValueToFloat(LLVMTypeRef TyRef, LLVMGenericValueRef GenVal);
 
+float LLVMGenericValueToFloatSingle(LLVMGenericValueRef GenVal);
+
+double LLVMGenericValueToFloatDouble(LLVMGenericValueRef GenVal);
+
 void LLVMGenericValueSetDoubleValue(LLVMGenericValueRef GenVal,
                                     double DoubleVal);
 
@@ -208,6 +212,12 @@ void LLVMExecutionEngineSetMiriMemset(LLVMExecutionEngineRef EE,
 
 void LLVMExecutionEngineSetMiriMemcpy(LLVMExecutionEngineRef EE,
                                       MiriMemcpy IncomingMemcpy);
+
+void LLVMExecutionEngineSetMiriIntToPtr(LLVMExecutionEngineRef EE,
+                                        MiriIntToPtr IncomingIntToPtr);
+
+void LLVMExecutionEngineSetMiriPtrToInt(LLVMExecutionEngineRef EE,
+                                        MiriPtrToInt IncomingPtrToInt);
 
 /*===-- Operations on memory managers -------------------------------------===*/
 
