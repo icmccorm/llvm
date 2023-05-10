@@ -2358,7 +2358,6 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
           Interpreter::context().Caller->arg_size() == ArgVals.size()) &&
          "Incorrect number of arguments passed into function call!");
   // Make a new stack frame... and fill it in.
-
   Interpreter::currentStack().emplace_back(
       Interpreter::ExecutionEngine::MiriWrapper,
       Interpreter::ExecutionEngine::MiriFree);
@@ -2386,8 +2385,9 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
   // Handle non-varargs arguments...
   unsigned i = 0;
   for (Function::arg_iterator AI = F->arg_begin(), E = F->arg_end(); AI != E;
-       ++AI, ++i)
+       ++AI, ++i) {
     SetValue(&*AI, ArgVals[i], StackFrame);
+  }
 
   // Handle varargs arguments...
   StackFrame.VarArgs.assign(ArgVals.begin() + i, ArgVals.end());

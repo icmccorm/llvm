@@ -761,21 +761,35 @@ GenericValue ExecutionEngine::getConstantValue(const Constant *C) {
       return GV;
     }
     case Instruction::PtrToInt: {
-      GenericValue GV = getConstantValue(Op0);
-      uint32_t PtrWidth = DL.getTypeSizeInBits(Op0->getType());
-      assert(PtrWidth <= 64 && "Bad pointer width");
-      GV.IntVal = APInt(PtrWidth, uintptr_t(GV.PointerVal));
-      uint32_t IntWidth = DL.getTypeSizeInBits(CE->getType());
-      GV.IntVal = GV.IntVal.zextOrTrunc(IntWidth);
-      return GV;
+      if (ExecutionEngine::miriIsInitialized()) {
+        GenericValue GV = getConstantValue(Op0);
+        uint64_t SrcAsInt = ExecutionEngine::MPtrToInt(
+            ExecutionEngine::MiriWrapper, GVTOMiriPointer(GV));
+        if (SrcAsInt != 0) {
+          GV.IntVal = APInt(MIRI_POINTER_BIT_WIDTH, uintptr_t(SrcAsInt));
+          return GV;
+        } else {
+          ExecutionEngine::setMiriErrorFlag();
+          return GV;
+        }
+      } else {
+        report_fatal_error("Miri is not initialized");
+      }
     }
     case Instruction::IntToPtr: {
-      GenericValue GV = getConstantValue(Op0);
-      uint32_t PtrWidth = DL.getTypeSizeInBits(CE->getType());
-      GV.IntVal = GV.IntVal.zextOrTrunc(PtrWidth);
-      assert(GV.IntVal.getBitWidth() <= 64 && "Bad pointer width");
-      GV.PointerVal = PointerTy(uintptr_t(GV.IntVal.getZExtValue()));
-      return GV;
+      if (ExecutionEngine::miriIsInitialized()) {
+        GenericValue GV = getConstantValue(Op0);
+        MiriPointer Converted = ExecutionEngine::MIntToPtr(
+            ExecutionEngine::MiriWrapper, GV.IntVal.getZExtValue());
+        if (Converted.prov.alloc_id != 0) {
+          return MiriPointerTOGV(Converted);
+        } else {
+          ExecutionEngine::setMiriErrorFlag();
+          return GV;
+        }
+      } else {
+        report_fatal_error("Miri is not initialized");
+      }
     }
     case Instruction::BitCast: {
       GenericValue GV = getConstantValue(Op0);

@@ -112,6 +112,14 @@ public:
   // visit - Finally, code to visit an instruction...
   //
   RetTy visit(Instruction &I) {
+
+    // print the instruction
+    /*
+      std::string str;
+      llvm::raw_string_ostream rso(str);
+      I.print(rso);
+      std::cout << str << std::endl;*/
+
     static_assert(std::is_base_of<InstVisitor, SubClass>::value,
                   "Must pass the derived type to this template!");
     switch (I.getOpcode()) {
