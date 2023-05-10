@@ -58,6 +58,9 @@ LLVMGenericValueRef LLVMCreateAggregateGenericValue(uint64_t NumMembers);
 void LLVMGenericValueAppendAggregate(LLVMGenericValueRef GenVal,
                                      LLVMGenericValueRef GenValElement);
 
+void LLVMGenericValueEnsureCapacity(LLVMGenericValueRef GenVal,
+                                    uint64_t Capacity);
+
 LLVMGenericValueRef LLVMCreateGenericValueOfPointer(void *P);
 
 LLVMGenericValueRef LLVMCreateGenericValueOfMiriPointer(MiriPointer Prov);

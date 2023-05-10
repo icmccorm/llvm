@@ -82,6 +82,11 @@ void LLVMGenericValueAppendAggregate(LLVMGenericValueRef GenVal,
   unwrap(GenVal)->AggregateVal.push_back(*unwrap(GenValElement));
 }
 
+void LLVMGenericValueEnsureCapacity(LLVMGenericValueRef GenVal,
+                                    uint64_t Capacity) {
+  unwrap(GenVal)->AggregateVal.resize(Capacity);
+}
+
 LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
   GenericValue *GenVal = new GenericValue();
   switch (unwrap(TyRef)->getTypeID()) {
