@@ -55,8 +55,8 @@ LLVMGenericValueRef LLVMCreateGenericValueOfInt(LLVMTypeRef Ty,
 
 LLVMGenericValueRef LLVMCreateAggregateGenericValue(uint64_t NumMembers);
 
-void LLVMGenericValueAppendAggregate(LLVMGenericValueRef GenVal,
-                                     LLVMGenericValueRef GenValElement);
+void LLVMGenericValueAppendAggregateValue(LLVMGenericValueRef GenVal,
+                                          LLVMGenericValueRef GenValElement);
 
 void LLVMGenericValueEnsureCapacity(LLVMGenericValueRef GenVal,
                                     uint64_t Capacity);
@@ -95,7 +95,8 @@ void LLVMGenericValueSetMiriPointerValue(LLVMGenericValueRef GenVal,
 void LLVMGenericValueSetMiriParentPointerValue(LLVMGenericValueRef GenVal,
                                                MiriPointer PointerMetaVal);
 LLVMGenericValueRef
-LLVMGetPointerToAggregateGenericValue(LLVMGenericValueRef GenValRef);
+LLVMGetPointerToAggregateGenericValue(LLVMGenericValueRef GenValRef,
+                                      uint64_t Index);
 
 size_t LLVMGetAggregateGenericValueLength(LLVMGenericValueRef GenValRef);
 

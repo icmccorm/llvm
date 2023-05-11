@@ -59,8 +59,9 @@ LLVMCreateGenericValueOfMiriPointer(MiriPointer PointerMetaVal) {
 }
 
 LLVMGenericValueRef
-LLVMGetPointerToAggregateGenericValue(LLVMGenericValueRef GenValRef) {
-  return wrap(unwrap(GenValRef)->AggregateVal.data());
+LLVMGetPointerToAggregateGenericValue(LLVMGenericValueRef GenValRef,
+                                      uint64_t Index) {
+  return wrap(&(*(unwrap(GenValRef)->AggregateVal.begin() + Index)));
 }
 
 size_t LLVMGetAggregateGenericValueLength(LLVMGenericValueRef GenValRef) {
@@ -73,12 +74,11 @@ MiriPointer LLVMGenericValueToMiriPointer(LLVMGenericValueRef GenValRef) {
 
 LLVMGenericValueRef LLVMCreateAggregateGenericValue(uint64_t NumMembers) {
   GenericValue *GenVal = new GenericValue();
-  GenVal->AggregateVal.resize(NumMembers);
   return wrap(GenVal);
 }
 
-void LLVMGenericValueAppendAggregate(LLVMGenericValueRef GenVal,
-                                     LLVMGenericValueRef GenValElement) {
+void LLVMGenericValueAppendAggregateValue(LLVMGenericValueRef GenVal,
+                                          LLVMGenericValueRef GenValElement) {
   unwrap(GenVal)->AggregateVal.push_back(*unwrap(GenValElement));
 }
 

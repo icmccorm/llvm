@@ -57,9 +57,9 @@ inline GenericValue MiriPointerTOGV(MiriPointer P) { return GenericValue(P); }
 inline GenericValue PTOGV(void *P) { return GenericValue(P); }
 inline void *GVTOP(const GenericValue &GV) { return GV.PointerVal; }
 inline MiriPointer GVTOMiriPointer(GenericValue &GV) {
-  return MiriPointer {
-    (uint64_t)(uintptr_t)GV.PointerVal,
-    GV.Provenance,
+  return MiriPointer{
+      (uint64_t)(uintptr_t)GV.PointerVal,
+      GV.Provenance,
   };
 }
 } // end namespace llvm
