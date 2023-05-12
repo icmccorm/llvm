@@ -16,11 +16,12 @@
 #include "llvm-c/ExecutionEngine.h"
 #include "llvm-c/ExternC.h"
 #include "llvm-c/Types.h"
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 LLVM_C_EXTERN_C_BEGIN
 
 typedef struct LLVMOpaqueGenericValue *LLVMGenericValueRef;
+typedef struct LLVMOpaqueGenericValueArrayRef *LLVMGenericValueArrayRef;
 
 typedef struct MiriProvenance {
   uint64_t alloc_id;
@@ -55,12 +56,12 @@ typedef bool (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer,
 typedef void (*MiriStackTraceRecorderHook)(void *, MiriErrorTrace *const,
                                            uint64_t);
 typedef LLVMGenericValueRef (*MiriCallByNameHook)(void *, LLVMGenericValueRef,
-                                                  LLVMGenericValueRef, uint64_t,
+                                                  LLVMGenericValueArrayRef,
                                                   const char *, uint64_t,
                                                   LLVMTypeRef);
 typedef LLVMGenericValueRef (*MiriCallByPointerHook)(void *, MiriPointer,
                                                      LLVMGenericValueRef,
-                                                     LLVMGenericValueRef,
-                                                     uint64_t, LLVMTypeRef);
+                                                     LLVMGenericValueArrayRef,
+                                                     LLVMTypeRef);
 LLVM_C_EXTERN_C_END
 #endif // LLVM_C_MIRI_H

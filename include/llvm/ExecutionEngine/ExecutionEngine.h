@@ -55,6 +55,8 @@ class Triple;
 class Type;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(GenericValue, LLVMGenericValueRef)
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(ArrayRef<GenericValue>,
+                                   LLVMGenericValueArrayRef)
 
 namespace object {
 

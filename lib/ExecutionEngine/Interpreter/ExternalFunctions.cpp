@@ -297,15 +297,13 @@ static bool ffiInvoke(RawFunc Fn, Function *F, ArrayRef<GenericValue> ArgVals,
 GenericValue Interpreter::CallMiriFunctionByPointer(
     FunctionType *FType, GenericValue FuncPtr, ArrayRef<GenericValue> ArgVals) {
   MiriPointer MiriFuncPtr = GVTOMiriPointer(FuncPtr);
-  uint64_t NumArgs = ArgVals.size();
-  const GenericValue *Args = ArgVals.data();
-  LLVMGenericValueRef ArgsRef = wrap(Args);
   GenericValue Result = GenericValue();
   LLVMGenericValueRef ResultRef = wrap(&Result);
+  LLVMGenericValueArrayRef ArgsArrayRef = wrap(&ArgVals);
   LLVMTypeRef FTypeRef = wrap(FType);
   bool status =
       Interpreter::MiriCallByPointer(ExecutionEngine::MiriWrapper, MiriFuncPtr,
-                                     ResultRef, ArgsRef, NumArgs, FTypeRef);
+                                     ResultRef, ArgsArrayRef, FTypeRef);
   if (status) {
     Interpreter::registerMiriErrorWithoutLocation();
   }
@@ -318,16 +316,16 @@ Interpreter::CallMiriFunctionByName(Function *F,
   StringRef Name = F->getName();
   const char *NamePtr = Name.data();
   uint64_t NameLength = Name.size();
-  uint64_t NumArgs = ArgVals.size();
-  const GenericValue *Args = ArgVals.data();
+
   FunctionType *FType = F->getFunctionType();
   LLVMTypeRef FTypeRef = wrap(FType);
-  LLVMGenericValueRef ArgsRef = wrap(Args);
   GenericValue Result = GenericValue();
   LLVMGenericValueRef ResultRef = wrap(&Result);
-  bool status = Interpreter::MiriCallByName(ExecutionEngine::MiriWrapper,
-                                            ResultRef, ArgsRef, NumArgs,
-                                            NamePtr, NameLength, FTypeRef);
+  LLVMGenericValueArrayRef ArgsArrayRef = wrap(&ArgVals);
+
+  bool status =
+      Interpreter::MiriCallByName(ExecutionEngine::MiriWrapper, ResultRef,
+                                  ArgsArrayRef, NamePtr, NameLength, FTypeRef);
   if (status) {
     Interpreter::registerMiriErrorWithoutLocation();
   }

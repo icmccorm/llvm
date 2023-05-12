@@ -102,6 +102,15 @@ LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
   return wrap(GenVal);
 }
 
+LLVMGenericValueRef
+LLVMGenericValueArrayRefGetElementAt(LLVMGenericValueArrayRef GenArray,
+                                     uint64_t Index) {
+  return wrap(&(*unwrap(GenArray))[Index]);
+}
+uint64_t LLVMGenericValueArrayRefLength(LLVMGenericValueArrayRef GenArray) {
+  return unwrap(GenArray)->size();
+}
+
 float LLVMGenericValueToFloatSingle(LLVMGenericValueRef GenVal) {
   return unwrap(GenVal)->FloatVal;
 }

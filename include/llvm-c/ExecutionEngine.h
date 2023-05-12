@@ -102,6 +102,12 @@ size_t LLVMGetAggregateGenericValueLength(LLVMGenericValueRef GenValRef);
 
 void LLVMDisposeGenericValue(LLVMGenericValueRef GenVal);
 
+LLVMGenericValueRef
+LLVMGenericValueArrayRefGetElementAt(LLVMGenericValueArrayRef GenArray,
+                                     uint64_t Index);
+
+uint64_t LLVMGenericValueArrayRefLength(LLVMGenericValueArrayRef GenArray);
+
 /*===-- Operations on execution engines -----------------------------------===*/
 
 LLVMBool LLVMCreateExecutionEngineForModule(LLVMExecutionEngineRef *OutEE,
