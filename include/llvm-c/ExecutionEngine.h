@@ -49,6 +49,9 @@ struct LLVMMCJITCompilerOptions {
 
 /*===-- Operations on generic values --------------------------------------===*/
 
+LLVMGenericValueRef LLVMCreateGenericValueOfData(const uint8_t *Data,
+                                                 uint32_t Len);
+
 LLVMGenericValueRef LLVMCreateGenericValueOfInt(LLVMTypeRef Ty,
                                                 unsigned long long N,
                                                 LLVMBool IsSigned);

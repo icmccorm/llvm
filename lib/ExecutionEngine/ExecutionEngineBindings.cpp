@@ -102,6 +102,13 @@ LLVMGenericValueRef LLVMCreateGenericValueOfFloat(LLVMTypeRef TyRef, double N) {
   return wrap(GenVal);
 }
 
+LLVMGenericValueRef LLVMCreateGenericValueOfData(const uint8_t *Data,
+                                                 uint32_t Len) {
+  GenericValue *GenVal = new GenericValue();
+  LoadIntFromMemory(GenVal->IntVal, Data, Len);
+  return wrap(GenVal);
+}
+
 LLVMGenericValueRef
 LLVMGenericValueArrayRefGetElementAt(LLVMGenericValueArrayRef GenArray,
                                      uint64_t Index) {
