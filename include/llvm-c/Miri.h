@@ -55,12 +55,11 @@ typedef bool (*MiriLoadStoreHook)(void *, LLVMGenericValueRef, MiriPointer,
                                   LLVMTypeRef, uint64_t, uint64_t);
 typedef void (*MiriStackTraceRecorderHook)(void *, MiriErrorTrace *const,
                                            uint64_t);
-typedef LLVMGenericValueRef (*MiriCallByNameHook)(void *, LLVMGenericValueRef,
+typedef LLVMGenericValueRef (*MiriCallByNameHook)(void *,
                                                   LLVMGenericValueArrayRef,
                                                   const char *, uint64_t,
                                                   LLVMTypeRef);
 typedef LLVMGenericValueRef (*MiriCallByPointerHook)(void *, MiriPointer,
-                                                     LLVMGenericValueRef,
                                                      LLVMGenericValueArrayRef,
                                                      LLVMTypeRef);
 LLVM_C_EXTERN_C_END

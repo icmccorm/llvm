@@ -1021,6 +1021,11 @@ void Interpreter::popStackAndReturnValueToCaller(Type *RetTy,
   // Pop the current stack frame.
   Interpreter::popContext();
 
+  passReturnValueToLowerStackFrame(RetTy, Result);
+}
+
+void Interpreter::passReturnValueToLowerStackFrame(Type *RetTy,
+                                                   GenericValue Result) {
   if (Interpreter::stackIsEmpty()) {   // Finished main.  Put result into exit
                                        // code...
     if (RetTy && !RetTy->isVoidTy()) { // Nonvoid return type?
@@ -1340,7 +1345,10 @@ void Interpreter::visitCallBase(CallBase &I) {
   // and treat it as a function pointer.
   GenericValue SRC = getOperandValue(SF.Caller->getCalledOperand(), SF);
   if (SRC.Provenance.alloc_id != 0) {
-    Interpreter::CallMiriFunctionByPointer(I.getFunctionType(), SRC, ArgVals);
+    GenericValue Result = Interpreter::CallMiriFunctionByPointer(
+        I.getFunctionType(), SRC, ArgVals);
+    passReturnValueToLowerStackFrame(I.getFunctionType()->getReturnType(),
+                                     Result);
   } else {
     callFunction((Function *)GVTOP(SRC), ArgVals);
   }

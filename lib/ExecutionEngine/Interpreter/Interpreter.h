@@ -243,9 +243,11 @@ public:
   GenericValue callExternalFunction(Function *F,
                                     ArrayRef<GenericValue> ArgVals);
 
-  GenericValue CallMiriFunctionByName(Function *F, ArrayRef<GenericValue> ArgVals);
-  GenericValue CallMiriFunctionByPointer(FunctionType * FType, GenericValue FuncPtr, ArrayRef<GenericValue> ArgVals);
-
+  GenericValue CallMiriFunctionByName(Function *F,
+                                      ArrayRef<GenericValue> ArgVals);
+  GenericValue CallMiriFunctionByPointer(FunctionType *FType,
+                                         GenericValue FuncPtr,
+                                         ArrayRef<GenericValue> ArgVals);
 
   void exitCalled(GenericValue GV);
 
@@ -296,6 +298,7 @@ private: // Helper functions
   GenericValue executeCastOperation(Instruction::CastOps opcode, Value *SrcVal,
                                     Type *Ty, ExecutionContext &SF);
   void popStackAndReturnValueToCaller(Type *RetTy, GenericValue Result);
+  void passReturnValueToLowerStackFrame(Type *RetTy, GenericValue Result);
 };
 
 } // namespace llvm
